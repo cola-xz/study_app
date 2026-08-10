@@ -1,0 +1,52 @@
+{
+	"pages": [
+		{
+			"path": "pages/system/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/home/home",
+			"style": {
+				"navigationBarTitleText": "首页",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/appcenter/video",
+			"style": {
+				"navigationBarTitleText": "视频",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/appcenter/novel",
+			"style": {
+				"navigationBarTitleText": "小说",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/system/personal",
+			"style": {
+				"navigationBarTitleText": "小说",
+				"navigationStyle": "custom"
+			}
+		}
+	],
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"^app-(.*)": "@/components/app-$1/app-$1.vue"
+		}
+	},
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "uni-app",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+	"uniIdRouter": {}
+}

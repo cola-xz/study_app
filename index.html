@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<script>
+			/* 屏蔽 uni统计(uni-stat) 上报：仅拦 XHR/fetch/sendBeacon，不影响任何静态图片 */
+			(function() {
+				var HOST = 'tongji-collector.dcloud.net.cn'
+				function blocked(url) {
+					return typeof url === 'string' && url.indexOf(HOST) !== -1
+				}
+				var _open = XMLHttpRequest.prototype.open
+				XMLHttpRequest.prototype.open = function(method, url) {
+					this._safeUrl = url
+					return _open.apply(this, arguments)
+				}
+				var _send = XMLHttpRequest.prototype.send
+				XMLHttpRequest.prototype.send = function(body) {
+					if (this._safeUrl && blocked(this._safeUrl)) {
+						return
+					}
+					return _send.apply(this, arguments)
+				}
+				if (typeof window.fetch === 'function') {
+					var _fetch = window.fetch
+					window.fetch = function(input, init) {
+						var url = typeof input === 'string' ? input : (input && input.url)
+						if (blocked(url)) {
+							return new Promise(function(r) {
+								r({ ok: true, status: 204, json: function() { return Promise.resolve({}) },
+									text: function() { return Promise.resolve('') } })
+							})
+						}
+						return _fetch.apply(this, arguments)
+					}
+				}
+				if (navigator.sendBeacon && typeof navigator.sendBeacon === 'function') {
+					var _sb = navigator.sendBeacon.bind(navigator)
+					navigator.sendBeacon = function(url, data) {
+						if (blocked(url)) {
+							return true
+						}
+						return _sb(url, data)
+					}
+				}
+			})()
+		</script>
+		<script>
+			var coverSupport = 'CSS' in window && typeof CSS.supports === 'function' && (CSS.supports('top: env(a)') ||
+				CSS.supports('top: constant(a)'))
+			document.write(
+				'<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0' +
+				(coverSupport ? ', viewport-fit=cover' : '') + '" />')
+		</script>
+		<title></title>
+		<!--preload-links-->
+		<!--app-context-->
+	</head>
+	<body>
+		<div id="app"><!--app-html--></div>
+		<script type="module" src="/main.ts"></script>
+	</body>
+</html>

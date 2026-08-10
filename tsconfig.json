@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"module": "esnext",
+		"moduleResolution": "node",
+		"strict": true,
+		"jsx": "preserve",
+		"sourceMap": true,
+		"esModuleInterop": true,
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./*"]
+		},
+		"lib": ["esnext", "dom"],
+		"types": ["@dcloudio/types"]
+	},
+	"exclude": [
+		"node_modules",
+		"unpackage",
+		"dist"
+	]
+}
