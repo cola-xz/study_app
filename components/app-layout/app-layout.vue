@@ -10,31 +10,36 @@
 				<view class="nav-bar-left" @click="handleBack">
 					<text v-if="showBack" class="back-icon">‹</text>
 				</view>
-				<text class="nav-bar-title">{{ title }}</text>
-				<view class="nav-bar-right">
-					<!-- 下拉菜单栏 -->
-					<view v-if="childMenus.length" class="dropdown">
-						<view class="dropdown-trigger" @click="dropdownOpen = !dropdownOpen">
-							<text class="dropdown-trigger-text">菜单</text>
-							<text class="dropdown-trigger-arrow" :class="{ 'dropdown-trigger-arrow-open': dropdownOpen }">▾</text>
-						</view>
-						<view v-if="dropdownOpen" class="dropdown-panel" @click="dropdownOpen = false">
-							<view
-								v-for="menu in childMenus"
-								:key="menu.path"
-								class="dropdown-item"
-								:class="{ 'dropdown-item-active': isActive(menu) }"
-								@click.stop="handleMenuTap(menu)"
-							>
-								<text class="dropdown-item-title">{{ menu.title }}</text>
-							</view>
-						</view>
+				<!-- 标题 + 下拉菜单栏合并：有子路由时可点击标题弹出下拉框 -->
+				<view
+					class="nav-bar-title"
+					:class="{ 'nav-bar-title-dropdown': childMenus.length }"
+					@click="toggleDropdown"
+				>
+					<text class="nav-bar-title-text">{{ title }}</text>
+					<text
+						v-if="childMenus.length"
+						class="dropdown-title-arrow"
+						:class="{ 'dropdown-trigger-arrow-open': dropdownOpen }"
+					>▾</text>
+				</view>
+				<view v-if="childMenus.length && dropdownOpen" class="dropdown-panel" @click="dropdownOpen = false">
+					<view
+						v-for="menu in childMenus"
+						:key="menu.path"
+						class="dropdown-item"
+						:class="{ 'dropdown-item-active': isActive(menu) }"
+						@click.stop="handleMenuTap(menu)"
+					>
+						<text class="dropdown-item-title">{{ menu.title }}</text>
 					</view>
+				</view>
+<!-- 				<view class="nav-bar-right">
 					<view class="info-trigger" @click="openInfoPopup">
 						<text class="info-trigger-text">信息</text>
 					</view>
 					<slot name="nav-right"></slot>
-				</view>
+				</view> -->
 			</view>
 		</view>
 
@@ -57,7 +62,7 @@
 		</view>
 
 		<!-- 常驻信息弹窗 -->
-		<view v-if="infoPopupVisible" class="info-popup-mask" @click="closeInfoPopup">
+		<!-- <view v-if="infoPopupVisible" class="info-popup-mask" @click="closeInfoPopup">
 			<view class="info-popup" @click.stop>
 				<view class="info-popup-header">
 					<text class="info-popup-title">路由信息</text>
@@ -84,15 +89,15 @@
 					</view>
 				</view>
 			</view>
-		</view>
+		</view> -->
 	</view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useRouterStore } from '@/store/modules/router'
-import { getCurrentPage, getRouteMeta } from '@/utils/router'
+import { getCurrentPage, getRouteMeta, guardCurrentPage } from '@/utils/router'
 
 const props = withDefaults(
 	defineProps<{
@@ -149,6 +154,14 @@ function findMenuByPath(items: MenuItem[], path: string): MenuItem | null {
 
 const dropdownOpen = ref(false)
 
+/**
+ * 点击标题切换下拉框；无子菜单时无动作
+ */
+function toggleDropdown() {
+	if (!childMenus.value.length) return
+	dropdownOpen.value = !dropdownOpen.value
+}
+
 const activePath = ref('')
 
 // 常驻信息弹窗
@@ -180,13 +193,17 @@ function closeInfoPopup() {
 const title = ref(props.title)
 
 const statusBarHeight = ref(20)
-const navContentHeight = ref(44)
+const navContentHeight = ref(54)
 
 const navBarHeight = computed(() => statusBarHeight.value + navContentHeight.value)
 
 onLoad(() => {
+	// 先同步标题与激活菜单，确保导航栏始终有内容
 	setPageTitle()
 	syncActivePath()
+
+	// 页面级登录兜底校验：未登录时跳转登录页
+	if (!guardCurrentPage()) return
 
 	const sys = uni.getSystemInfoSync()
 	// 状态栏高度
@@ -202,17 +219,48 @@ onLoad(() => {
 })
 
 onShow(() => {
+	setPageTitle()
 	syncActivePath()
 })
 
+// 动态菜单异步加载完成后，重新同步标题（刷新场景下首次 onShow 时菜单可能尚未就绪）
+watch(
+	() => routerStore.getTabList,
+	() => {
+		if (tabList.value.length) {
+			setPageTitle()
+		}
+	}
+)
+
 /**
  * 根据当前页面路径自动从路由配置表读取标题
- * 未配置时回退为手动传入的 title prop
+ * 优先从动态菜单（tabList）中匹配，其次从静态路由元信息读取，未配置时回退为手动传入的 title prop
  */
 function setPageTitle() {
 	const path = getCurrentPage()
+	if (!path) return
+	// 从动态菜单中查找标题（响应式，generateRoutes 完成后会自动更新）
+	const menuTitle = findMenuTitle(tabList.value, path)
+	if (menuTitle) {
+		title.value = menuTitle
+		return
+	}
 	const meta = getRouteMeta(path)
 	title.value = (meta && meta.title) || props.title
+}
+
+/**
+ * 在菜单树中查找路径对应的标题
+ */
+function findMenuTitle(items: MenuItem[] | undefined, path: string): string {
+	if (!items) return ''
+	for (const item of items) {
+		if (item.path === path) return item.title
+		const childTitle = findMenuTitle(item.children, path)
+		if (childTitle) return childTitle
+	}
+	return ''
 }
 
 /**
@@ -301,10 +349,31 @@ function handleBack() {
 
 	.nav-bar-title {
 		flex: 1;
-		text-align: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: calc(100% + 12rpx);
+	}
+
+	.nav-bar-title-dropdown {
+		cursor: pointer;
+	}
+
+	.nav-bar-title-text {
 		font-size: 32rpx;
 		font-weight: 600;
 		color: #333333;
+	}
+
+	.dropdown-title-arrow {
+		margin-left: 8rpx;
+		font-size: 20rpx;
+		color: #666666;
+		transition: transform 0.2s;
+	}
+
+	.dropdown-trigger-arrow-open {
+		transform: rotate(180deg);
 	}
 
 	.nav-bar-right {
@@ -317,43 +386,15 @@ function handleBack() {
 		z-index: 10;
 	}
 
-	.dropdown {
-		position: relative;
-		margin-right: 16rpx;
-	}
-
-	.dropdown-trigger {
-		display: flex;
-		align-items: center;
-		padding: 8rpx 16rpx;
-		border-radius: 8rpx;
-		background-color: #f5f6fa;
-	}
-
-	.dropdown-trigger-text {
-		font-size: 26rpx;
-		color: #333333;
-	}
-
-	.dropdown-trigger-arrow {
-		margin-left: 8rpx;
-		font-size: 20rpx;
-		color: #666666;
-		transition: transform 0.2s;
-	}
-
-	.dropdown-trigger-arrow-open {
-		transform: rotate(180deg);
-	}
-
 	.dropdown-panel {
 		position: absolute;
-		top: calc(100% + 8rpx);
-		right: 0;
+		top: 100%;
+		left: 50%;
+		transform: translateX(-50%);
 		z-index: 110;
 		min-width: 200rpx;
 		background-color: #ffffff;
-		border-radius: 12rpx;
+		border-radius: 0 0 12rpx 12rpx;
 		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.12);
 		overflow: hidden;
 	}

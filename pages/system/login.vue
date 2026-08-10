@@ -38,6 +38,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useUserStore } from '@/store/modules/user';
+import { isLogin, ROUTES } from '@/utils/router';
 
 const userStore = useUserStore();
 
@@ -50,6 +51,11 @@ const form = ref({
 })
 
 onLoad((options: any) => {
+	// 已登录用户进入登录启动页（冷启动）：直接跳转首页
+	if (isLogin()) {
+		uni.reLaunch({ url: ROUTES.home })
+		return
+	}
 	// 记录登录后要返回的页面
 	if (options && options.from) {
 		from.value = decodeURIComponent(options.from) as string;

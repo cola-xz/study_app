@@ -141,6 +141,17 @@ export const router = {
 }
 
 /**
+ * 页面级登录守卫
+ * 供业务页（app-layout onLoad）调用，作为 addInterceptor 的跨端兜底校验。
+ * 返回 true 表示通过，false 表示未通过（已跳转登录页）
+ */
+export function guardCurrentPage(): boolean {
+	if (isLogin()) return true
+	safeRedirectToLogin(getCurrentPage() || ROUTES.home)
+	return false
+}
+
+/**
  * 是否正在跳转登录页（防止守卫递归触发）
  */
 let redirectingToLogin = false

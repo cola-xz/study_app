@@ -149,11 +149,6 @@ export function request<T = any>(options: RequestOptions): Promise<IApiResult<T>
 	}
 
 	return new Promise<IApiResult<T>>((resolve, reject) => {
-		uni.showModal({
-			title: '提示',
-			content: `当前的接口路径：${requestUrl}`,
-		})
-
 		uni.request({
 			url: requestUrl,
 			method,
