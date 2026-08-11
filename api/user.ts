@@ -52,6 +52,16 @@ export function getUserInfo(data: any): Promise<any> {
 	return post<any>('/getUserInfo', data)
 }
 
+/**
+ * 获取当前用户菜单信息
+ */
 export function getMenus(data: any): Promise<any> {
 	return post<any>('/getMenus', data, { loading: true, loadingText: '加载菜单种...' })
+}
+
+/**
+ * 扫码登录配置
+ */
+export function qrCodeScan(data: any): Promise<any> {
+	return post<any>('/QrCodeScan', data)
 }

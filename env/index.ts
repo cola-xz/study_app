@@ -25,7 +25,9 @@ export interface EnvConfig {
 /** 开发环境配置 */
 const development: EnvConfig = {
 	env: 'development',
-	baseUrl: 'http://localhost:8080/web/api',
+	// H5 开发时使用相对路径，交由 manifest.json 中 h5.devServer.proxy 转发到目标后端，
+	// 从而规避跨域。App/小程序端如需直连真实地址，请改为 'http://10.1.3.175:8080/web/api'。
+	baseUrl: 'http://10.1.3.175:8080/web/api',
 	appId: 'dev-app-id',
 	appName: 'study_app',
 	debug: true,

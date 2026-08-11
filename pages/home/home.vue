@@ -64,7 +64,7 @@ function handleLogout() {
 }
 </script>
 
-<style>
+<style scoped>
 	.container {
 		width: calc(100vw - 60rpx);
 		height: calc(100vh - 60rpx);

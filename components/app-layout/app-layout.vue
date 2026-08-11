@@ -1,47 +1,51 @@
 <template>
 	<view class="app-layout">
 		<!-- 顶部导航栏 -->
-		<view class="nav-bar" :style="{ height: navBarHeight + 'px' }">
-			<view
-				class="nav-bar-placeholder"
-				:style="{ height: statusBarHeight + 'px' }"
-			></view>
-			<view class="nav-bar-content" :style="{ height: navContentHeight + 'px' }">
-				<view class="nav-bar-left" @click="handleBack">
-					<text v-if="showBack" class="back-icon">‹</text>
-				</view>
-				<!-- 标题 + 下拉菜单栏合并：有子路由时可点击标题弹出下拉框 -->
-				<view
-					class="nav-bar-title"
-					:class="{ 'nav-bar-title-dropdown': childMenus.length }"
-					@click="toggleDropdown"
-				>
-					<text class="nav-bar-title-text">{{ title }}</text>
-					<text
-						v-if="childMenus.length"
-						class="dropdown-title-arrow"
-						:class="{ 'dropdown-trigger-arrow-open': dropdownOpen }"
-					>▾</text>
-				</view>
-				<view v-if="childMenus.length && dropdownOpen" class="dropdown-panel" @click="dropdownOpen = false">
+		  <view class="nav-bar">
+			<view class="box-bg">
+			  <uni-nav-bar
+			    height="85rpx"
+				color="#999"
+				backgroundColor="#f5f5f5"
+				shadow
+			  >
 					<view
-						v-for="menu in childMenus"
-						:key="menu.path"
-						class="dropdown-item"
-						:class="{ 'dropdown-item-active': isActive(menu) }"
-						@click.stop="handleMenuTap(menu)"
+						class="nav-bar-title"
+						:class="{ 'nav-bar-title-dropdown': childMenus.length }"
+						@click="toggleDropdown"
 					>
-						<text class="dropdown-item-title">{{ menu.title }}</text>
+						<text class="nav-bar-title-text">{{ title }}</text>
+						<text
+							v-if="childMenus.length"
+							class="dropdown-title-arrow"
+							:class="{ 'dropdown-trigger-arrow-open': dropdownOpen }"
+						>▾</text>
 					</view>
-				</view>
-<!-- 				<view class="nav-bar-right">
-					<view class="info-trigger" @click="openInfoPopup">
-						<text class="info-trigger-text">信息</text>
+					<view v-if="childMenus.length && dropdownOpen" class="dropdown-panel" @click="dropdownOpen = false">
+						<view
+							v-for="menu in childMenus"
+							:key="menu.path"
+							class="dropdown-item"
+							:class="{ 'dropdown-item-active': isActive(menu) }"
+							@click.stop="handleMenuTap(menu)"
+						>
+							<text class="dropdown-item-title">{{ menu.title }}</text>
+						</view>
 					</view>
-					<slot name="nav-right"></slot>
-				</view> -->
+					<template v-slot:left>
+						<uni-icons type="left" size="26" @click="handleBack" v-if="showBack"></uni-icons>
+					</template>
+					<template v-slot:right>
+						<view class="nav-bar-right">
+							<!-- <view class="info-trigger" @click="openInfoPopup">
+								<text class="info-trigger-text">信息</text>
+							</view> -->
+							<slot name="nav-right"></slot>
+						</view>
+					</template>
+			  </uni-nav-bar>
 			</view>
-		</view>
+		  </view>
 
 		<!-- 页面主体内容 -->
 		<view class="app-layout-body">
@@ -60,36 +64,6 @@
 				<text class="bottom-menu-item-title">{{ item.title }}</text>
 			</view>
 		</view>
-
-		<!-- 常驻信息弹窗 -->
-		<!-- <view v-if="infoPopupVisible" class="info-popup-mask" @click="closeInfoPopup">
-			<view class="info-popup" @click.stop>
-				<view class="info-popup-header">
-					<text class="info-popup-title">路由信息</text>
-					<text class="info-popup-close" @click="closeInfoPopup">×</text>
-				</view>
-				<view class="info-popup-body">
-					<view v-if="activeMenuInfo" class="info-popup-row">
-						<text class="info-popup-label">当前标题：</text>
-						<text class="info-popup-value">{{ activeMenuInfo.title }}</text>
-					</view>
-					<view v-if="activeMenuInfo" class="info-popup-row">
-						<text class="info-popup-label">当前路径：</text>
-						<text class="info-popup-value">{{ activeMenuInfo.path }}</text>
-					</view>
-					<view v-if="childMenus.length" class="info-popup-row info-popup-row-col">
-						<text class="info-popup-label">子路由：</text>
-						<view class="info-popup-children">
-							<text
-								v-for="child in childMenus"
-								:key="child.path"
-								class="info-popup-child-item"
-							>{{ child.title }} —— {{ child.path }}</text>
-						</view>
-					</view>
-				</view>
-			</view>
-		</view> -->
 	</view>
 </template>
 
@@ -192,11 +166,6 @@ function closeInfoPopup() {
 
 const title = ref(props.title)
 
-const statusBarHeight = ref(20)
-const navContentHeight = ref(54)
-
-const navBarHeight = computed(() => statusBarHeight.value + navContentHeight.value)
-
 onLoad(() => {
 	// 先同步标题与激活菜单，确保导航栏始终有内容
 	setPageTitle()
@@ -204,18 +173,6 @@ onLoad(() => {
 
 	// 页面级登录兜底校验：未登录时跳转登录页
 	if (!guardCurrentPage()) return
-
-	const sys = uni.getSystemInfoSync()
-	// 状态栏高度
-	statusBarHeight.value = sys.statusBarHeight ?? 20
-	// 导航栏内容高度（胶囊按钮所在区域，仅小程序端存在）
-	let buttonHeight = 0
-	if ((sys as any)?.menuButtonBoundingClientRect?.top !== undefined) {
-		const menu = (sys as any).menuButtonBoundingClientRect
-		buttonHeight = menu.height || 0
-	}
-	// 无胶囊按钮（H5/App）时用固定值
-	navContentHeight.value = buttonHeight > 0 ? buttonHeight : 44
 })
 
 onShow(() => {
@@ -322,37 +279,12 @@ function handleBack() {
 		background-color: #ffffff;
 	}
 
-	.nav-bar-content {
-		position: relative;
-		display: flex;
-		align-items: center;
-		width: 100%;
-	}
-
-	.nav-bar-left {
-		position: absolute;
-		left: 0;
-		display: flex;
-		align-items: center;
-		justify-content: flex-start;
-		height: 100%;
-		padding: 0 24rpx;
-		z-index: 10;
-	}
-
-	.back-icon {
-		font-size: 48rpx;
-		color: #333333;
-		line-height: 1;
-		font-weight: 300;
-	}
-
 	.nav-bar-title {
 		flex: 1;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		height: calc(100% + 12rpx);
+		height: 85rpx;
 	}
 
 	.nav-bar-title-dropdown {
@@ -424,7 +356,8 @@ function handleBack() {
 	.app-layout-body {
 		flex: 1;
 		width: 100%;
-		padding-bottom: 120rpx;
+		padding-bottom: calc(100rpx + env(safe-area-inset-bottom));
+		padding-bottom: calc(100rpx + constant(safe-area-inset-bottom));
 	}
 
 	.bottom-menu {
