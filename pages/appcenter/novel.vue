@@ -3,60 +3,84 @@
 		<view class="page">
 			<view class="novel-container">
 				<!-- 左侧：小说列表 -->
-				<scroll-view scroll-y class="novel-list" :show-scrollbar="true">
-					<view
-						v-for="book in bookList"
-						:key="book.id"
-						class="book-item"
-						:class="{ 'book-item-active': isActiveBook(book) }"
-						@click="handleSelectBook(book)"
-					>
-						<text class="book-name">{{ book.fileByName }}</text>
-						<text class="book-desc">{{ fileSuffixLabel(book.fileSuffix) }}</text>
+				<view class="novel-panel">
+					<view class="panel-head">
+						<view class="panel-title-row">
+							<view class="panel-title-dot"></view>
+							<text class="panel-title">小说目录</text>
+						</view>
+						<text class="panel-sub">{{ bookList.length }} 部小说</text>
 					</view>
-					<view v-if="listLoading && bookList.length === 0" class="list-empty">
-						<text class="empty-text">加载中...</text>
-					</view>
-					<view v-else-if="hasError && bookList.length === 0" class="list-empty">
-						<text class="empty-text">加载失败</text>
-						<view class="empty-action" @click="getNovelList(true)">点击重试</view>
-					</view>
-					<view v-else-if="bookList.length === 0" class="list-empty">
-						<text class="empty-text">暂无小说</text>
-					</view>
-				</scroll-view>
+					<scroll-view scroll-y class="novel-scroll" :show-scrollbar="false">
+						<view v-if="listLoading && bookList.length === 0" class="list-empty">
+							<text class="empty-text">加载中...</text>
+						</view>
+						<view v-else-if="hasError && bookList.length === 0" class="list-empty">
+							<text class="empty-text">加载失败</text>
+							<view class="empty-action" @click="getNovelList(true)">点击重试</view>
+						</view>
+						<view v-else-if="bookList.length === 0" class="list-empty">
+							<text class="empty-text">暂无小说</text>
+						</view>
+						<view
+							v-for="book in bookList"
+							:key="book.id"
+							class="book-item"
+							:class="{ 'book-item-active': isActiveBook(book) }"
+							@click="handleSelectBook(book)"
+						>
+							<view class="book-icon">📖</view>
+							<view class="book-info">
+								<text class="book-name">{{ book.fileByName }}</text>
+								<view class="book-tag">{{ fileSuffixLabel(book.fileSuffix) }}</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
 
-				<view class="divider"></view>
+				<view class="gap"></view>
 
 				<!-- 右侧：对应小说章节列表 -->
-				<scroll-view
-					scroll-y
-					class="episode-list"
-					:show-scrollbar="true"
-					:scroll-into-view="chapterScrollTarget"
-					scroll-with-animation
-				>
-					<view v-if="chapterLoading" class="list-empty">
-						<text class="empty-text">加载章节中...</text>
+				<view class="episode-panel">
+					<view class="panel-head">
+						<view class="panel-title-row">
+							<view class="panel-title-dot"></view>
+							<text class="panel-title">章节目录</text>
+						</view>
+						<text class="panel-sub">
+							<text v-if="activeNovel">{{ activeNovel.fileByName }}</text>
+							<text v-else>请选择左侧小说</text>
+						</text>
 					</view>
-					<view v-else-if="!activeNovel" class="list-empty">
-						<text class="empty-text">请选择左侧小说</text>
-					</view>
-					<view v-else-if="sourceChapterList.length === 0" class="list-empty">
-						<text class="empty-text">暂无章节</text>
-					</view>
-					<view
-						v-for="(episode, index) in sourceChapterList"
-						:key="index"
-						:id="`ep-${index}`"
-						class="episode-item"
-						:class="{ 'episode-item-active': currentEpisodeIndex === index }"
-						@click="handleSelectEpisode(index, episode)"
+					<scroll-view
+						scroll-y
+						class="episode-scroll"
+						:show-scrollbar="false"
+						:scroll-into-view="chapterScrollTarget"
+						scroll-with-animation
 					>
-						<text class="episode-num">{{ getChapterNo(index, episode) }}</text>
-						<text class="episode-title">{{ getChapterTitle(episode) }}</text>
-					</view>
-				</scroll-view>
+						<view v-if="chapterLoading" class="list-empty">
+							<text class="empty-text">加载章节中...</text>
+						</view>
+						<view v-else-if="!activeNovel" class="list-empty">
+							<text class="empty-text">请选择左侧小说</text>
+						</view>
+						<view v-else-if="sourceChapterList.length === 0" class="list-empty">
+							<text class="empty-text">暂无章节</text>
+						</view>
+						<view
+							v-for="(episode, index) in sourceChapterList"
+							:key="index"
+							:id="`ep-${index}`"
+							class="episode-item"
+							:class="{ 'episode-item-active': currentEpisodeIndex === index }"
+							@click="handleSelectEpisode(index, episode)"
+						>
+							<text class="episode-num">{{ getChapterNo(index, episode) }}</text>
+							<text class="episode-title">{{ getChapterTitle(episode) }}</text>
+						</view>
+					</scroll-view>
+				</view>
 			</view>
 		</view>
 
@@ -352,29 +376,92 @@ onMounted(() => {
 		display: flex;
 		width: 100%;
 		height: 100%;
+		padding: 20rpx;
+		box-sizing: border-box;
+		background: #f3f5fb;
 	}
 
-	/* 左侧小说列表 */
-	.novel-list {
+	/* 左侧小说面板 */
+	.novel-panel {
 		flex: 1;
 		height: 100%;
+		display: flex;
+		flex-direction: column;
 		background-color: #ffffff;
+		border-radius: 24rpx;
+		box-shadow: 0 6rpx 24rpx rgba(31, 58, 147, 0.06);
+		overflow: hidden;
+	}
+
+	.panel-head {
+		padding: 24rpx 28rpx 18rpx;
+		display: flex;
+		flex-direction: column;
+		gap: 6rpx;
+		border-bottom: 1rpx solid #f0f2f8;
+		flex-shrink: 0;
+	}
+
+	.panel-title-row {
+		display: flex;
+		align-items: center;
+		gap: 12rpx;
+	}
+
+	.panel-title-dot {
+		width: 10rpx;
+		height: 10rpx;
+		border-radius: 50%;
+		background-color: #4b7aff;
+	}
+
+	.panel-title {
+		font-size: 30rpx;
+		font-weight: 600;
+		color: #1f2329;
+	}
+
+	.panel-sub {
+		font-size: 22rpx;
+		color: #9aa0b4;
+		padding-left: 22rpx;
+	}
+
+	.novel-scroll {
+		flex: 1;
+		height: 0;
+		padding: 8rpx 4rpx;
 		box-sizing: border-box;
 	}
 
 	.book-item {
-		padding: 24rpx;
-		border-bottom: 1rpx solid #f0f0f0;
+		display: flex;
+		align-items: center;
+		gap: 16rpx;
+		margin: 6rpx 12rpx;
+		padding: 18rpx 20rpx;
+		border-radius: 16rpx;
+		box-sizing: border-box;
 		transition: background-color 0.2s;
+		cursor: pointer;
 	}
 
 	.book-item:active {
-		background-color: #f5f6fa;
+		background-color: #f0f2f8;
 	}
 
 	.book-item-active {
-		background-color: #f0f6ff;
-		border-right: 6rpx solid #2979ff;
+		background-color: #edf3ff;
+	}
+
+	.book-icon {
+		font-size: 36rpx;
+		flex-shrink: 0;
+	}
+
+	.book-info {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.book-name {
@@ -383,49 +470,69 @@ onMounted(() => {
 		font-weight: 600;
 		color: #333333;
 		line-height: 1.4;
+		word-break: break-all;
 	}
 
-	.book-desc {
-		display: block;
-		font-size: 24rpx;
-		color: #999999;
+	.book-item-active .book-name {
+		color: #2f6bff;
+	}
+
+	.book-tag {
+		display: inline-block;
 		margin-top: 8rpx;
+		font-size: 20rpx;
+		color: #4b7aff;
+		background-color: #edf3ff;
+		padding: 2rpx 14rpx;
+		border-radius: 18rpx;
 	}
 
-	.divider {
-		width: 2rpx;
-		height: 100%;
-		background-color: #e0e0e0;
+	.gap {
+		width: 20rpx;
 		flex-shrink: 0;
 	}
 
-	/* 右侧章节列表 */
-	.episode-list {
+	/* 右侧章节面板 */
+	.episode-panel {
 		flex: 1;
 		height: 100%;
-		background-color: #fafbfc;
+		display: flex;
+		flex-direction: column;
+		background-color: #ffffff;
+		border-radius: 24rpx;
+		box-shadow: 0 6rpx 24rpx rgba(31, 58, 147, 0.06);
+		overflow: hidden;
+	}
+
+	.episode-scroll {
+		flex: 1;
+		height: 0;
+		padding: 8rpx 4rpx;
 		box-sizing: border-box;
 	}
 
 	.episode-item {
+		margin: 6rpx 12rpx;
 		padding: 20rpx 24rpx;
-		border-bottom: 1rpx solid #f0f0f0;
+		border-radius: 16rpx;
+		box-sizing: border-box;
 		transition: background-color 0.2s;
+		cursor: pointer;
 	}
 
 	.episode-item:active {
-		background-color: #f5f6fa;
+		background-color: #f0f2f8;
 	}
 
 	.episode-item-active {
-		background-color: #fff4e6;
+		background-color: #edf3ff;
 	}
 
 	.episode-num {
 		display: block;
-		font-size: 30rpx;
+		font-size: 28rpx;
 		font-weight: 600;
-		color: #2979ff;
+		color: #4b7aff;
 		line-height: 1.4;
 	}
 
@@ -435,6 +542,12 @@ onMounted(() => {
 		color: #666666;
 		line-height: 1.5;
 		margin-top: 6rpx;
+		word-break: break-all;
+	}
+
+	.episode-item-active .episode-title {
+		color: #2f6bff;
+		font-weight: 500;
 	}
 
 	/* 空/加载状态 */
@@ -443,20 +556,20 @@ onMounted(() => {
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		gap: 20rpx;
 		padding: 60rpx 24rpx;
 	}
 
 	.empty-text {
 		font-size: 26rpx;
-		color: #999999;
+		color: #9aa0b4;
 	}
 
 	.empty-action {
-		margin-top: 16rpx;
-		padding: 12rpx 32rpx;
+		padding: 12rpx 36rpx;
 		font-size: 26rpx;
-		color: #2979ff;
-		border: 1rpx solid #2979ff;
+		color: #4b7aff;
+		background-color: #edf3ff;
 		border-radius: 32rpx;
 	}
 

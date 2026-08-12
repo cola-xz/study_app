@@ -20,3 +20,10 @@ export function getUserNovel(data: any): Promise<any> {
 export function getChapterInfo(data: any): Promise<any> {
 	return post<any>('/getChapterInfo', data)
 }
+
+/**
+ * 获取上传目录信息（树形结构）
+ */
+export function getUploadInfo(data: any): Promise<any> {
+	return post<any>('/getUploadInfo', data)
+}
