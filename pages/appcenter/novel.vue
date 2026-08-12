@@ -316,35 +316,101 @@ function closeReader() {
     }
 
     try {
-      const res: any = await getFile({
+      const buffer: any = await getFile({
         filePath: filePath.value,
         fileName: `${activeNovel.value.fileName}${activeNovel.value.fileSuffix}`,
         postType: 'chapterView',
         chapterNumber: chapterNumber,
       });
 
-      if (res instanceof Blob) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          // 尝试 GBK，如果乱码可能需要根据文件实际编码调整，或者后端统一返回 UTF-8
-          const text = (e.target?.result as string) || ''
-          novelContent.value = formatContent(text)
-          readingLoading.value = false
-        };
-        reader.onerror = () => {
-          novelContent.value = '加载章节内容失败，请稍后重试。'
-          readingLoading.value = false
-        };
-        reader.readAsText(res, encoding.value);
-      } else {
-        novelContent.value = '加载章节内容失败，请稍后重试。'
-        readingLoading.value = false
+      let text = ''
+      if (buffer && typeof buffer === 'object' && buffer.byteLength !== undefined) {
+        text = decodeChapterText(buffer, encoding.value)
+      } else if (typeof buffer === 'string') {
+        text = buffer
       }
+
+      novelContent.value = formatContent(text)
+      readingLoading.value = false
     } catch (error) {
       console.error('获取章节内容失败:', error);
       novelContent.value = '加载章节内容失败，请稍后重试。'
       readingLoading.value = false
     }
+  }
+
+  /**
+   * 多端兼容地将章节字节解码为文本。
+   * 后端 getFile 返回的内容通常是已转为 UTF-8 的中文文本，因此：
+   * - 首选严格 UTF-8 解码（用 fatal 模式校验字节合法性，避免出现乱码而不自知）
+   * - 若 UTF-8 校验失败（字节非法），再按后端 encoding 尝试 GBK 等中文编码解码
+   * - 无 TextDecoder 时，用 uni.arrayBufferToBase64 + 纯 JS UTF-8 解码兜底
+   */
+  function decodeChapterText(buffer: ArrayBuffer, enc: string): string {
+    if (typeof TextDecoder !== 'undefined') {
+      // 1) 首选严格 UTF-8：字节非法会抛 RangeError
+      try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(buffer))
+      } catch (e) {
+        // 字节不是合法 UTF-8，可能为 GBK 等中文编码
+      }
+      // 2) 按后端 encoding 尝试（gbk 系列映射为 gbk）
+      try {
+        const label = normalizeEncoding(enc)
+        return new TextDecoder(label, { fatal: true }).decode(new Uint8Array(buffer))
+      } catch (e) {
+        // 3) encoding 不可用/不支持时，回退非 fatal UTF-8（尽量保住可识别字符）
+        return new TextDecoder('utf-8').decode(new Uint8Array(buffer))
+      }
+    }
+
+    return decodeUtf8FromBase64(buffer)
+  }
+
+  /**
+   * 使用 uni.arrayBufferToBase64 + 纯 JS 解码 UTF-8（不依赖 TextDecoder / atob）
+   */
+  function decodeUtf8FromBase64(buffer: ArrayBuffer): string {
+    try {
+      const b64 = uni.arrayBufferToBase64(buffer as any)
+      const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+      let bytes: number[] = []
+      for (let i = 0; i < b64.length; i += 4) {
+        const e1 = b64chars.indexOf(b64[i])
+        const e2 = b64chars.indexOf(b64[i + 1])
+        const e3 = b64chars.indexOf(b64[i + 2])
+        const e4 = b64chars.indexOf(b64[i + 3])
+        bytes.push((e1 << 2) | (e2 >> 4))
+        if (e3 !== -1) bytes.push(((e2 & 15) << 4) | (e3 >> 2))
+        if (e4 !== -1) bytes.push(((e3 & 3) << 6) | e4)
+      }
+      let str = ''
+      for (let i = 0; i < bytes.length; i++) {
+        const c = bytes[i]
+        if (c < 0x80) {
+          str += String.fromCharCode(c)
+        } else if (c > 0xbf && c < 0xe0) {
+          str += String.fromCharCode(((c & 0x1f) << 6) | (bytes[i + 1] & 0x3f))
+          i++
+        } else if (c >= 0xe0 && c < 0xf0) {
+          str += String.fromCharCode(((c & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f))
+          i += 2
+        }
+      }
+      return str
+    } catch (e) {
+      return ''
+    }
+  }
+
+  /**
+   * 统一解码时的编码名称：将后端常见命名映射到 TextDecoder 支持的 label
+   */
+  function normalizeEncoding(enc: string): string {
+    if (!enc) return 'utf-8'
+    const e = enc.toLowerCase()
+    if (e === 'gb2312' || e === 'gbk' || e === 'gb18030') return 'gbk'
+    return e
   }
 
   /**
@@ -365,7 +431,7 @@ onMounted(() => {
 <style scoped>
 	.page {
 		position: fixed;
-		top: 85rpx;
+		top: calc(85rpx + var(--status-bar-height, 0px));
 		left: 0;
 		right: 0;
 		bottom: calc(100rpx + env(safe-area-inset-bottom));

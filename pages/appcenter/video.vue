@@ -436,7 +436,7 @@ onMounted(() => {
 <style scoped>
 	.page {
 		position: fixed;
-		top: 85rpx;
+		top: calc(85rpx + var(--status-bar-height, 0px));
 		left: 0;
 		right: 0;
 		bottom: calc(100rpx + env(safe-area-inset-bottom));

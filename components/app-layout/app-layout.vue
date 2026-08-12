@@ -269,6 +269,8 @@ function handleBack() {
 		flex-direction: column;
 		min-height: 100vh;
 		background-color: #f5f6fa;
+		box-sizing: border-box;
+		padding-top: var(--status-bar-height, 0px);
 	}
 
 	.nav-bar {

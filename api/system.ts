@@ -2,11 +2,12 @@ import envConfig from '@/env/index'
 import { getToken } from '@/utils/request'
 
 /**
- * 下载文件资源（头像、小说文件等），返回 Blob。
- * 由于通用 request 只处理 JSON，这里直接用 uni.request 以 arraybuffer
- * 方式获取文件字节，再转成 Blob 供前端展示。
+ * 下载文件资源（头像、小说文件等），返回 ArrayBuffer 字节。
+ * 通用 request 只处理 JSON，这里直接用 uni.request 以 arraybuffer
+ * 方式获取文件字节。返回 ArrayBuffer（浏览器、App、小程序均一致），
+ * 不再依赖 Blob/FileReader（App 原生环境不支持 Blob）。
  */
-export function getFile(params: any): Promise<Blob> {
+export function getFile(params: any): Promise<ArrayBuffer> {
   const { fileUrl, postType, filePath, fileName, ...otherParams } = params
   const suffixApi: string = envConfig.baseUrl
   let url: string = ''
@@ -43,9 +44,7 @@ export function getFile(params: any): Promise<Blob> {
       },
       success: (res) => {
         if (res.statusCode === 200 && res.data) {
-          const buffer = res.data as ArrayBuffer
-          const blob = new Blob([buffer])
-          resolve(blob)
+          resolve(res.data as ArrayBuffer)
         } else {
           reject({ code: res.statusCode, data: null, message: `文件下载失败（${res.statusCode}）` })
         }
