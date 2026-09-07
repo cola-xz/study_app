@@ -45,7 +45,11 @@
 	}
 
 	function bindClick(e : any) {
-		console.log('点击item，返回数据' + JSON.stringify(e))
+		console.log('点击item，返回数据' + e)
+
+		uni.navigateTo({
+			url: '/pages/chat/chatRoom?id=123&name=测试'
+		})
 	}
 </script>
 

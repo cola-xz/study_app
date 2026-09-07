@@ -36,7 +36,9 @@ function formatMsg(m) {
 	return (typeof m === 'string' ? m : m.content) || ''
 }
 
-onLoad(() => {
+onLoad((options) => {
+	console.log(options);
+
 	chat.setEndpoint(WS_URL)
 	// 指定当前私聊对象（用户名与后端 /user/queue/private 的映射一致）
 	chat.setChatUserInfo({
