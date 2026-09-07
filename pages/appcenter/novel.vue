@@ -22,13 +22,8 @@
 						<view v-else-if="bookList.length === 0" class="list-empty">
 							<text class="empty-text">暂无小说</text>
 						</view>
-						<view
-							v-for="book in bookList"
-							:key="book.id"
-							class="book-item"
-							:class="{ 'book-item-active': isActiveBook(book) }"
-							@click="handleSelectBook(book)"
-						>
+						<view v-for="book in bookList" :key="book.id" class="book-item"
+							:class="{ 'book-item-active': isActiveBook(book) }" @click="handleSelectBook(book)">
 							<view class="book-icon">📖</view>
 							<view class="book-info">
 								<text class="book-name">{{ book.fileByName }}</text>
@@ -52,13 +47,8 @@
 							<text v-else>请选择左侧小说</text>
 						</text>
 					</view>
-					<scroll-view
-						scroll-y
-						class="episode-scroll"
-						:show-scrollbar="false"
-						:scroll-into-view="chapterScrollTarget"
-						scroll-with-animation
-					>
+					<scroll-view scroll-y class="episode-scroll" :show-scrollbar="false"
+						:scroll-into-view="chapterScrollTarget" scroll-with-animation>
 						<view v-if="chapterLoading" class="list-empty">
 							<text class="empty-text">加载章节中...</text>
 						</view>
@@ -68,14 +58,9 @@
 						<view v-else-if="sourceChapterList.length === 0" class="list-empty">
 							<text class="empty-text">暂无章节</text>
 						</view>
-						<view
-							v-for="(episode, index) in sourceChapterList"
-							:key="index"
-							:id="`ep-${index}`"
-							class="episode-item"
-							:class="{ 'episode-item-active': currentEpisodeIndex === index }"
-							@click="handleSelectEpisode(index, episode)"
-						>
+						<view v-for="(episode, index) in sourceChapterList" :key="index" :id="`ep-${index}`"
+							class="episode-item" :class="{ 'episode-item-active': currentEpisodeIndex === index }"
+							@click="handleSelectEpisode(index, episode)">
 							<text class="episode-num">{{ getChapterNo(index, episode) }}</text>
 							<text class="episode-title">{{ getChapterTitle(episode) }}</text>
 						</view>
@@ -90,7 +75,8 @@
 				<view class="reader-header">
 					<view class="reader-title">
 						<text class="reader-book-name">{{ currentBookName }}</text>
-						<text class="reader-episode-title">{{ currentEpisodeIndex + 1 }} - {{ currentEpisodeTitle }}</text>
+						<text class="reader-episode-title">{{ currentEpisodeIndex + 1 }} -
+							{{ currentEpisodeTitle }}</text>
 					</view>
 					<view class="reader-close" @click="closeReader">✕</view>
 				</view>
@@ -108,333 +94,330 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { getAllFilesByFileType, getChapterInfo, getUserNovel } from '@/api/novel'
-import { getFile } from '@/api/system'
+	import { ref, computed, onMounted, nextTick } from 'vue'
+	import { getAllFilesByFileType, getChapterInfo, getUserNovel } from '@/api/novel'
+	import { getFile } from '@/api/system'
 
-interface Book {
-	id: string | number
-	filetypeId: string | number
-	fileName: string
-	fileSuffix: string
-	fileByName: string
-	[key: string]: any
-}
-
-const fileType = ref('novel')
-const filePath = ref('')
-
-// 左侧小说列表
-const bookList = ref<Book[]>([])
-const activeNovel = ref<Book | null>(null)
-const currentBookId = ref<string>('')
-const listLoading = ref(false)
-const hasError = ref(false)
-
-// 右侧章节列表
-const sourceChapterList = ref<string[]>([])
-const chapterLoading = ref(false)
-const currentEpisodeIndex = ref<number>(0)
-const chapterScrollTarget = ref('')
-
-// 阅读状态
-const currentEpisodeTitle = ref<string>('')
-const readerVisible = ref(false)
-const isNewRecord = ref(true)
-const encoding = ref('')
-const novelContent = ref<string>('')
-const readingLoading = ref(false)
-
-const currentBookName = computed<string>(() => {
-	const book = bookList.value.find((b) => b.fileName === currentBookId.value)
-	return book ? book.fileByName : ''
-})
-
-function isActiveBook(book: Book): boolean {
-	return currentBookId.value === book.fileName
-}
-
-function fileSuffixLabel(suffix: string): string {
-	if (!suffix) return '文件'
-	return suffix.replace(/^\./, '').toUpperCase()
-}
-
-/**
- * 拆分章节字符串(如"第1章 章节标题")为章节序号和章节标题
- * 返回 { no, title }
- */
-function splitChapter(raw: string): { no: string; title: string } {
-	const text = (raw || '').trim()
-	const sep = text.search(/\s+/)
-	if (sep === -1) {
-		// 无空格：整串作为标题或序号
-		return /^\s*第?\s*\d*\s*章/i.test(text) ? { no: text, title: '' } : { no: '', title: text }
+	interface Book {
+		id : string | number
+		filetypeId : string | number
+		fileName : string
+		fileSuffix : string
+		fileByName : string
+		[key : string] : any
 	}
-	return {
-		no: text.slice(0, sep).trim(),
-		title: text.slice(sep).trim()
+
+	const fileType = ref('novel')
+	const filePath = ref('')
+
+	// 左侧小说列表
+	const bookList = ref<Book[]>([])
+	const activeNovel = ref<Book | null>(null)
+	const currentBookId = ref<string>('')
+	const listLoading = ref(false)
+	const hasError = ref(false)
+
+	// 右侧章节列表
+	const sourceChapterList = ref<string[]>([])
+	const chapterLoading = ref(false)
+	const currentEpisodeIndex = ref<number>(0)
+	const chapterScrollTarget = ref('')
+
+	// 阅读状态
+	const currentEpisodeTitle = ref<string>('')
+	const readerVisible = ref(false)
+	const isNewRecord = ref(true)
+	const encoding = ref('')
+	const novelContent = ref<string>('')
+	const readingLoading = ref(false)
+
+	const currentBookName = computed<string>(() => {
+		const book = bookList.value.find((b) => b.fileName === currentBookId.value)
+		return book ? book.fileByName : ''
+	})
+
+	function isActiveBook(book : Book) : boolean {
+		return currentBookId.value === book.fileName
 	}
-}
 
-function getChapterNo(index: number, raw: string): string {
-	const { no } = splitChapter(raw)
-	return no || `第 ${index + 1} 章`
-}
+	function fileSuffixLabel(suffix : string) : string {
+		if (!suffix) return '文件'
+		return suffix.replace(/^\./, '').toUpperCase()
+	}
 
-function getChapterTitle(raw: string): string {
-	return splitChapter(raw).title
-}
+	/**
+	 * 拆分章节字符串(如"第1章 章节标题")为章节序号和章节标题
+	 * 返回 { no, title }
+	 */
+	function splitChapter(raw : string) : { no : string; title : string } {
+		const text = (raw || '').trim()
+		const sep = text.search(/\s+/)
+		if (sep === -1) {
+			// 无空格：整串作为标题或序号
+			return /^\s*第?\s*\d*\s*章/i.test(text) ? { no: text, title: '' } : { no: '', title: text }
+		}
+		return {
+			no: text.slice(0, sep).trim(),
+			title: text.slice(sep).trim()
+		}
+	}
 
-/**
- * 获取小说文件列表
- */
-async function getNovelList(onMount: boolean = true) {
-	listLoading.value = true
-	hasError.value = false
-	try {
-		const res: any = await getAllFilesByFileType({
-			fileType: fileType.value
-		})
-		if (res.code === 200 && res.data?.fileList?.length > 0) {
-			bookList.value = res.data.fileList
-			filePath.value = res.data.filePath || ''
-		} else {
+	function getChapterNo(index : number, raw : string) : string {
+		const { no } = splitChapter(raw)
+		return no || `第 ${index + 1} 章`
+	}
+
+	function getChapterTitle(raw : string) : string {
+		return splitChapter(raw).title
+	}
+
+	/**
+	 * 获取小说文件列表
+	 */
+	async function getNovelList(onMount : boolean = true) {
+		listLoading.value = true
+		hasError.value = false
+		try {
+			const res : any = await getAllFilesByFileType({
+				fileType: fileType.value
+			})
+			if (res.code === 200 && res.data?.fileList?.length > 0) {
+				bookList.value = res.data.fileList
+				filePath.value = res.data.filePath || ''
+			} else {
+				bookList.value = []
+			}
+		} catch (error) {
+			console.error('获取小说列表失败:', error)
+			hasError.value = true
 			bookList.value = []
-		}
-	} catch (error) {
-		console.error('获取小说列表失败:', error)
-		hasError.value = true
-		bookList.value = []
-	} finally {
-		// 左侧列表加载结束即结束 loading，不等待右侧章节加载
-		listLoading.value = false
-	}
-
-	// 默认选中第一个（异步触发章节加载，不阻塞左侧列表 loading）
-	if (onMount && bookList.value.length > 0) {
-		await handleSelectBook(bookList.value[0])
-	}
-}
-
-/**
- * 选择小说：加载阅读进度 + 章节目录
- */
-async function handleSelectBook(item: Book) {
-	if (!item || !item.fileName) return
-
-	activeNovel.value = item
-	currentBookId.value = item.fileName
-	sourceChapterList.value = []
-	currentEpisodeIndex.value = 0
-	chapterScrollTarget.value = ''
-	readerVisible.value = false
-
-	try {
-		await loadChapterMetadata()
-		await loadReadingProgress()
-	} catch (error) {
-		console.error('选择小说失败:', error)
-	}
-}
-
-/**
- * 加载章节元数据（章节标题列表）
- */
-async function loadChapterMetadata() {
-	if (!activeNovel.value) return
-	chapterLoading.value = true
-	try {
-		const item = activeNovel.value
-		const fullPath = `${filePath.value}/${item.fileName}${item.fileSuffix}`
-
-		const res: any = await getChapterInfo({ filePath: fullPath })
-
-		if (res.code === 200 && res.data?.chapters) {
-			sourceChapterList.value = res.data.chapters
-			encoding.value = res.data.encoding || ''
-		} else {
-			sourceChapterList.value = []
-		}
-	} finally {
-		chapterLoading.value = false
-	}
-}
-
-/**
- * 加载用户阅读进度，定位到上次阅读章节
- */
-async function loadReadingProgress() {
-	if (!activeNovel.value) return
-	try {
-		const item = activeNovel.value
-		const novelRes: any = await getUserNovel({ novel_id: item.fileName })
-
-		let targetIndex = 0
-		isNewRecord.value = true
-
-		if (novelRes.code === 200 && novelRes.data && novelRes.data.length > 0) {
-			isNewRecord.value = false
-			// 后端返回的 chapterNumber 可能是 1-based，转换为 0-based 索引
-			const savedChapterNum = novelRes.data[0].chapterNumber
-			targetIndex = Math.max(Number(savedChapterNum) - 1 || 0, 0)
+		} finally {
+			// 左侧列表加载结束即结束 loading，不等待右侧章节加载
+			listLoading.value = false
 		}
 
-		currentEpisodeIndex.value = targetIndex
-		const raw = sourceChapterList.value[targetIndex] ?? ''
-		currentEpisodeTitle.value = getChapterTitle(raw) || getChapterNo(targetIndex, raw)
-
-		// 等待节点渲染后，自动滚动到当前阅读章节
-		nextTick(() => {
-			chapterScrollTarget.value = `ep-${targetIndex}`
-		})
-	} catch (error) {
-		console.error('获取阅读进度失败:', error)
+		// 默认选中第一个（异步触发章节加载，不阻塞左侧列表 loading）
+		if (onMount && bookList.value.length > 0) {
+			await handleSelectBook(bookList.value[0])
+		}
 	}
-}
 
-function handleSelectEpisode(index: number, title: string) {
-	currentEpisodeIndex.value = index
-	currentEpisodeTitle.value =
-		getChapterTitle(title) || getChapterNo(index, title)
-	readerVisible.value = true
-	novelContent.value = ''
-	readingLoading.value = true
-	getNovelDetail(index)
-}
+	/**
+	 * 选择小说：加载阅读进度 + 章节目录
+	 */
+	async function handleSelectBook(item : Book) {
+		if (!item || !item.fileName) return
 
-function closeReader() {
-	readerVisible.value = false
-}
+		activeNovel.value = item
+		currentBookId.value = item.fileName
+		sourceChapterList.value = []
+		currentEpisodeIndex.value = 0
+		chapterScrollTarget.value = ''
+		readerVisible.value = false
 
-/**
-   * 获取小说正文内容
-   */
-  async function getNovelDetail(chapterNumber: number) {
-    if (!activeNovel.value || !filePath.value) {
-      readingLoading.value = false
-      return
-    }
+		try {
+			await loadChapterMetadata()
+			await loadReadingProgress()
+		} catch (error) {
+			console.error('选择小说失败:', error)
+		}
+	}
 
-    try {
-      const buffer: any = await getFile({
-        filePath: filePath.value,
-        fileName: `${activeNovel.value.fileName}${activeNovel.value.fileSuffix}`,
-        postType: 'chapterView',
-        chapterNumber: chapterNumber,
-      });
+	/**
+	 * 加载章节元数据（章节标题列表）
+	 */
+	async function loadChapterMetadata() {
+		if (!activeNovel.value) return
+		chapterLoading.value = true
+		try {
+			const item = activeNovel.value
+			const fullPath = `${filePath.value}/${item.fileName}${item.fileSuffix}`
 
-      let text = ''
-      if (buffer && typeof buffer === 'object' && buffer.byteLength !== undefined) {
-        text = decodeChapterText(buffer, encoding.value)
-      } else if (typeof buffer === 'string') {
-        text = buffer
-      }
+			const res : any = await getChapterInfo({ filePath: fullPath })
 
-      novelContent.value = formatContent(text)
-      readingLoading.value = false
-    } catch (error) {
-      console.error('获取章节内容失败:', error);
-      novelContent.value = '加载章节内容失败，请稍后重试。'
-      readingLoading.value = false
-    }
-  }
+			if (res.code === 200 && res.data?.chapters) {
+				sourceChapterList.value = res.data.chapters
+				encoding.value = res.data.encoding || ''
+			} else {
+				sourceChapterList.value = []
+			}
+		} finally {
+			chapterLoading.value = false
+		}
+	}
 
-  /**
-   * 多端兼容地将章节字节解码为文本。
-   * 后端 getFile 返回的内容通常是已转为 UTF-8 的中文文本，因此：
-   * - 首选严格 UTF-8 解码（用 fatal 模式校验字节合法性，避免出现乱码而不自知）
-   * - 若 UTF-8 校验失败（字节非法），再按后端 encoding 尝试 GBK 等中文编码解码
-   * - 无 TextDecoder 时，用 uni.arrayBufferToBase64 + 纯 JS UTF-8 解码兜底
-   */
-  function decodeChapterText(buffer: ArrayBuffer, enc: string): string {
-    if (typeof TextDecoder !== 'undefined') {
-      // 1) 首选严格 UTF-8：字节非法会抛 RangeError
-      try {
-        return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(buffer))
-      } catch (e) {
-        // 字节不是合法 UTF-8，可能为 GBK 等中文编码
-      }
-      // 2) 按后端 encoding 尝试（gbk 系列映射为 gbk）
-      try {
-        const label = normalizeEncoding(enc)
-        return new TextDecoder(label, { fatal: true }).decode(new Uint8Array(buffer))
-      } catch (e) {
-        // 3) encoding 不可用/不支持时，回退非 fatal UTF-8（尽量保住可识别字符）
-        return new TextDecoder('utf-8').decode(new Uint8Array(buffer))
-      }
-    }
+	/**
+	 * 加载用户阅读进度，定位到上次阅读章节
+	 */
+	async function loadReadingProgress() {
+		if (!activeNovel.value) return
+		try {
+			const item = activeNovel.value
+			const novelRes : any = await getUserNovel({ novel_id: item.fileName })
 
-    return decodeUtf8FromBase64(buffer)
-  }
+			let targetIndex = 0
+			isNewRecord.value = true
 
-  /**
-   * 使用 uni.arrayBufferToBase64 + 纯 JS 解码 UTF-8（不依赖 TextDecoder / atob）
-   */
-  function decodeUtf8FromBase64(buffer: ArrayBuffer): string {
-    try {
-      const b64 = uni.arrayBufferToBase64(buffer as any)
-      const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-      let bytes: number[] = []
-      for (let i = 0; i < b64.length; i += 4) {
-        const e1 = b64chars.indexOf(b64[i])
-        const e2 = b64chars.indexOf(b64[i + 1])
-        const e3 = b64chars.indexOf(b64[i + 2])
-        const e4 = b64chars.indexOf(b64[i + 3])
-        bytes.push((e1 << 2) | (e2 >> 4))
-        if (e3 !== -1) bytes.push(((e2 & 15) << 4) | (e3 >> 2))
-        if (e4 !== -1) bytes.push(((e3 & 3) << 6) | e4)
-      }
-      let str = ''
-      for (let i = 0; i < bytes.length; i++) {
-        const c = bytes[i]
-        if (c < 0x80) {
-          str += String.fromCharCode(c)
-        } else if (c > 0xbf && c < 0xe0) {
-          str += String.fromCharCode(((c & 0x1f) << 6) | (bytes[i + 1] & 0x3f))
-          i++
-        } else if (c >= 0xe0 && c < 0xf0) {
-          str += String.fromCharCode(((c & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f))
-          i += 2
-        }
-      }
-      return str
-    } catch (e) {
-      return ''
-    }
-  }
+			if (novelRes.code === 200 && novelRes.data && novelRes.data.length > 0) {
+				isNewRecord.value = false
+				// 后端返回的 chapterNumber 可能是 1-based，转换为 0-based 索引
+				const savedChapterNum = novelRes.data[0].chapterNumber
+				targetIndex = Math.max(Number(savedChapterNum) - 1 || 0, 0)
+			}
 
-  /**
-   * 统一解码时的编码名称：将后端常见命名映射到 TextDecoder 支持的 label
-   */
-  function normalizeEncoding(enc: string): string {
-    if (!enc) return 'utf-8'
-    const e = enc.toLowerCase()
-    if (e === 'gb2312' || e === 'gbk' || e === 'gb18030') return 'gbk'
-    return e
-  }
+			currentEpisodeIndex.value = targetIndex
+			const raw = sourceChapterList.value[targetIndex] ?? ''
+			currentEpisodeTitle.value = getChapterTitle(raw) || getChapterNo(targetIndex, raw)
 
-  /**
-   * 格式化章节正文，去掉空行并转为段落
-   */
-  function formatContent(raw: string): string {
-    if (!raw) return ''
-    // 去掉首尾空白
-    let text = (raw || '').replace(/^\s+|\s+$/g, '')
-    return text
-  }
+			// 等待节点渲染后，自动滚动到当前阅读章节
+			nextTick(() => {
+				chapterScrollTarget.value = `ep-${targetIndex}`
+			})
+		} catch (error) {
+			console.error('获取阅读进度失败:', error)
+		}
+	}
 
-onMounted(() => {
-	getNovelList()
-})
+	function handleSelectEpisode(index : number, title : string) {
+		currentEpisodeIndex.value = index
+		currentEpisodeTitle.value =
+			getChapterTitle(title) || getChapterNo(index, title)
+		readerVisible.value = true
+		novelContent.value = ''
+		readingLoading.value = true
+		getNovelDetail(index)
+	}
+
+	function closeReader() {
+		readerVisible.value = false
+	}
+
+	/**
+	   * 获取小说正文内容
+	   */
+	async function getNovelDetail(chapterNumber : number) {
+		if (!activeNovel.value || !filePath.value) {
+			readingLoading.value = false
+			return
+		}
+
+		try {
+			const buffer : any = await getFile({
+				filePath: filePath.value,
+				fileName: `${activeNovel.value.fileName}${activeNovel.value.fileSuffix}`,
+				postType: 'chapterView',
+				chapterNumber: chapterNumber,
+			});
+
+			let text = ''
+			if (buffer && typeof buffer === 'object' && buffer.byteLength !== undefined) {
+				text = decodeChapterText(buffer, encoding.value)
+			} else if (typeof buffer === 'string') {
+				text = buffer
+			}
+
+			novelContent.value = formatContent(text)
+			readingLoading.value = false
+		} catch (error) {
+			console.error('获取章节内容失败:', error);
+			novelContent.value = '加载章节内容失败，请稍后重试。'
+			readingLoading.value = false
+		}
+	}
+
+	/**
+	 * 多端兼容地将章节字节解码为文本。
+	 * 后端 getFile 返回的内容通常是已转为 UTF-8 的中文文本，因此：
+	 * - 首选严格 UTF-8 解码（用 fatal 模式校验字节合法性，避免出现乱码而不自知）
+	 * - 若 UTF-8 校验失败（字节非法），再按后端 encoding 尝试 GBK 等中文编码解码
+	 * - 无 TextDecoder 时，用 uni.arrayBufferToBase64 + 纯 JS UTF-8 解码兜底
+	 */
+	function decodeChapterText(buffer : ArrayBuffer, enc : string) : string {
+		if (typeof TextDecoder !== 'undefined') {
+			// 1) 首选严格 UTF-8：字节非法会抛 RangeError
+			try {
+				return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(buffer))
+			} catch (e) {
+				// 字节不是合法 UTF-8，可能为 GBK 等中文编码
+			}
+			// 2) 按后端 encoding 尝试（gbk 系列映射为 gbk）
+			try {
+				const label = normalizeEncoding(enc)
+				return new TextDecoder(label, { fatal: true }).decode(new Uint8Array(buffer))
+			} catch (e) {
+				// 3) encoding 不可用/不支持时，回退非 fatal UTF-8（尽量保住可识别字符）
+				return new TextDecoder('utf-8').decode(new Uint8Array(buffer))
+			}
+		}
+
+		return decodeUtf8FromBase64(buffer)
+	}
+
+	/**
+	 * 使用 uni.arrayBufferToBase64 + 纯 JS 解码 UTF-8（不依赖 TextDecoder / atob）
+	 */
+	function decodeUtf8FromBase64(buffer : ArrayBuffer) : string {
+		try {
+			const b64 = uni.arrayBufferToBase64(buffer as any)
+			const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+			let bytes : number[] = []
+			for (let i = 0; i < b64.length; i += 4) {
+				const e1 = b64chars.indexOf(b64[i])
+				const e2 = b64chars.indexOf(b64[i + 1])
+				const e3 = b64chars.indexOf(b64[i + 2])
+				const e4 = b64chars.indexOf(b64[i + 3])
+				bytes.push((e1 << 2) | (e2 >> 4))
+				if (e3 !== -1) bytes.push(((e2 & 15) << 4) | (e3 >> 2))
+				if (e4 !== -1) bytes.push(((e3 & 3) << 6) | e4)
+			}
+			let str = ''
+			for (let i = 0; i < bytes.length; i++) {
+				const c = bytes[i]
+				if (c < 0x80) {
+					str += String.fromCharCode(c)
+				} else if (c > 0xbf && c < 0xe0) {
+					str += String.fromCharCode(((c & 0x1f) << 6) | (bytes[i + 1] & 0x3f))
+					i++
+				} else if (c >= 0xe0 && c < 0xf0) {
+					str += String.fromCharCode(((c & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f))
+					i += 2
+				}
+			}
+			return str
+		} catch (e) {
+			return ''
+		}
+	}
+
+	/**
+	 * 统一解码时的编码名称：将后端常见命名映射到 TextDecoder 支持的 label
+	 */
+	function normalizeEncoding(enc : string) : string {
+		if (!enc) return 'utf-8'
+		const e = enc.toLowerCase()
+		if (e === 'gb2312' || e === 'gbk' || e === 'gb18030') return 'gbk'
+		return e
+	}
+
+	/**
+	 * 格式化章节正文，去掉空行并转为段落
+	 */
+	function formatContent(raw : string) : string {
+		if (!raw) return ''
+		// 去掉首尾空白
+		let text = (raw || '').replace(/^\s+|\s+$/g, '')
+		return text
+	}
+
+	onMounted(() => {
+		getNovelList()
+	})
 </script>
 
 <style scoped>
 	.page {
-		position: fixed;
-		top: calc(85rpx + var(--status-bar-height, 0px));
-		left: 0;
-		right: 0;
-		bottom: calc(100rpx + env(safe-area-inset-bottom));
+		width: 100%;
+		height: 100%;
 		overflow: hidden;
 	}
 

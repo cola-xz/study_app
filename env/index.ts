@@ -34,16 +34,6 @@ const development: EnvConfig = {
 	version: '1.0.0'
 }
 
-/** 预发布环境配置 */
-const staging: EnvConfig = {
-	env: 'staging',
-	baseUrl: 'http://10.1.3.175:8080/web/api',
-	appId: 'staging-app-id',
-	appName: 'study_app',
-	debug: false,
-	version: '1.0.0'
-}
-
 /** 生产环境配置 */
 const production: EnvConfig = {
 	env: 'production',
@@ -60,7 +50,6 @@ const NODE_ENV = process.env.NODE_ENV || 'development'
 /** 根据当前环境获取对应配置 */
 const envConfigMap: Record<string, EnvConfig> = {
 	development,
-	staging,
 	production
 }
 
@@ -68,7 +57,7 @@ const envConfigMap: Record<string, EnvConfig> = {
 const envConfig: EnvConfig = envConfigMap[NODE_ENV]
 
 /** 导出所有环境配置 */
-export { development, staging, production }
+export { development, production }
 
 /** 默认导出当前环境配置 */
 export default envConfig

@@ -65,3 +65,12 @@ export function getMenus(data: any): Promise<any> {
 export function qrCodeScan(data: any): Promise<any> {
 	return post<any>('/QrCodeScan', data)
 }
+
+/**
+ * 好友请求列表
+ * 仅作占位，后续按后端真实接口替换
+ */
+export function getRequestFriendList(data: any): Promise<any> {
+	// TODO get('/friend/requestList', data)
+	return Promise.resolve({ code: 200, data: [] })
+}

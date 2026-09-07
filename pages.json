@@ -34,6 +34,34 @@
 				"navigationBarTitleText": "小说",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/chat/charRoom",
+			"style": {
+				"navigationBarTitleText": "聊天",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/chat/chatUser",
+			"style": {
+				"navigationBarTitleText": "用户",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/chat/dynamic",
+			"style": {
+				"navigationBarTitleText": "动态",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/appcenter/appcenter",
+			"style": {
+				"navigationBarTitleText": "应用中心",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"easycom": {
