@@ -22,8 +22,13 @@
 						<view v-else-if="bookList.length === 0" class="list-empty">
 							<text class="empty-text">暂无小说</text>
 						</view>
-						<view v-for="book in bookList" :key="book.id" class="book-item"
-							:class="{ 'book-item-active': isActiveBook(book) }" @click="handleSelectBook(book)">
+						<view
+							v-for="book in bookList"
+							:key="book.id"
+							class="book-item"
+							:class="{ 'book-item-active': isActiveBook(book) }"
+							@click="handleSelectBook(book)"
+						>
 							<view class="book-icon">📖</view>
 							<view class="book-info">
 								<text class="book-name">{{ book.fileByName }}</text>
@@ -47,8 +52,13 @@
 							<text v-else>请选择左侧小说</text>
 						</text>
 					</view>
-					<scroll-view scroll-y class="episode-scroll" :show-scrollbar="false"
-						:scroll-into-view="chapterScrollTarget" scroll-with-animation>
+					<scroll-view
+						scroll-y
+						class="episode-scroll"
+						:show-scrollbar="false"
+						:scroll-into-view="chapterScrollTarget"
+						scroll-with-animation
+					>
 						<view v-if="chapterLoading" class="list-empty">
 							<text class="empty-text">加载章节中...</text>
 						</view>
@@ -58,9 +68,14 @@
 						<view v-else-if="sourceChapterList.length === 0" class="list-empty">
 							<text class="empty-text">暂无章节</text>
 						</view>
-						<view v-for="(episode, index) in sourceChapterList" :key="index" :id="`ep-${index}`"
-							class="episode-item" :class="{ 'episode-item-active': currentEpisodeIndex === index }"
-							@click="handleSelectEpisode(index, episode)">
+						<view
+							v-for="(episode, index) in sourceChapterList"
+							:key="index"
+							:id="`ep-${index}`"
+							class="episode-item"
+							:class="{ 'episode-item-active': currentEpisodeIndex === index }"
+							@click="handleSelectEpisode(index, episode)"
+						>
 							<text class="episode-num">{{ getChapterNo(index, episode) }}</text>
 							<text class="episode-title">{{ getChapterTitle(episode) }}</text>
 						</view>
@@ -75,8 +90,9 @@
 				<view class="reader-header">
 					<view class="reader-title">
 						<text class="reader-book-name">{{ currentBookName }}</text>
-						<text class="reader-episode-title">{{ currentEpisodeIndex + 1 }} -
-							{{ currentEpisodeTitle }}</text>
+						<text class="reader-episode-title"
+							>{{ currentEpisodeIndex + 1 }} - {{ currentEpisodeTitle }}</text
+						>
 					</view>
 					<view class="reader-close" @click="closeReader">✕</view>
 				</view>
@@ -94,622 +110,623 @@
 </template>
 
 <script lang="ts" setup>
-	import { ref, computed, onMounted, nextTick } from 'vue'
-	import { getAllFilesByFileType, getChapterInfo, getUserNovel } from '@/api/novel'
-	import { getFile } from '@/api/system'
+import { ref, computed, onMounted, nextTick } from 'vue';
+import { getAllFilesByFileType, getChapterInfo, getUserNovel } from '@/api/novel';
+import { getFile } from '@/api/system';
 
-	interface Book {
-		id : string | number
-		filetypeId : string | number
-		fileName : string
-		fileSuffix : string
-		fileByName : string
-		[key : string] : any
+interface Book {
+	id: string | number;
+	filetypeId: string | number;
+	fileName: string;
+	fileSuffix: string;
+	fileByName: string;
+	[key: string]: any;
+}
+
+const fileType = ref('novel');
+const filePath = ref('');
+
+// 左侧小说列表
+const bookList = ref<Book[]>([]);
+const activeNovel = ref<Book | null>(null);
+const currentBookId = ref<string>('');
+const listLoading = ref(false);
+const hasError = ref(false);
+
+// 右侧章节列表
+const sourceChapterList = ref<string[]>([]);
+const chapterLoading = ref(false);
+const currentEpisodeIndex = ref<number>(0);
+const chapterScrollTarget = ref('');
+
+// 阅读状态
+const currentEpisodeTitle = ref<string>('');
+const readerVisible = ref(false);
+const isNewRecord = ref(true);
+const encoding = ref('');
+const novelContent = ref<string>('');
+const readingLoading = ref(false);
+
+const currentBookName = computed<string>(() => {
+	const book = bookList.value.find((b) => b.fileName === currentBookId.value);
+	return book ? book.fileByName : '';
+});
+
+function isActiveBook(book: Book): boolean {
+	return currentBookId.value === book.fileName;
+}
+
+function fileSuffixLabel(suffix: string): string {
+	if (!suffix) return '文件';
+	return suffix.replace(/^\./, '').toUpperCase();
+}
+
+/**
+ * 拆分章节字符串(如"第1章 章节标题")为章节序号和章节标题
+ * 返回 { no, title }
+ */
+function splitChapter(raw: string): { no: string; title: string } {
+	const text = (raw || '').trim();
+	const sep = text.search(/\s+/);
+	if (sep === -1) {
+		// 无空格：整串作为标题或序号
+		return /^\s*第?\s*\d*\s*章/i.test(text) ? { no: text, title: '' } : { no: '', title: text };
 	}
+	return {
+		no: text.slice(0, sep).trim(),
+		title: text.slice(sep).trim(),
+	};
+}
 
-	const fileType = ref('novel')
-	const filePath = ref('')
+function getChapterNo(index: number, raw: string): string {
+	const { no } = splitChapter(raw);
+	return no || `第 ${index + 1} 章`;
+}
 
-	// 左侧小说列表
-	const bookList = ref<Book[]>([])
-	const activeNovel = ref<Book | null>(null)
-	const currentBookId = ref<string>('')
-	const listLoading = ref(false)
-	const hasError = ref(false)
+function getChapterTitle(raw: string): string {
+	return splitChapter(raw).title;
+}
 
-	// 右侧章节列表
-	const sourceChapterList = ref<string[]>([])
-	const chapterLoading = ref(false)
-	const currentEpisodeIndex = ref<number>(0)
-	const chapterScrollTarget = ref('')
-
-	// 阅读状态
-	const currentEpisodeTitle = ref<string>('')
-	const readerVisible = ref(false)
-	const isNewRecord = ref(true)
-	const encoding = ref('')
-	const novelContent = ref<string>('')
-	const readingLoading = ref(false)
-
-	const currentBookName = computed<string>(() => {
-		const book = bookList.value.find((b) => b.fileName === currentBookId.value)
-		return book ? book.fileByName : ''
-	})
-
-	function isActiveBook(book : Book) : boolean {
-		return currentBookId.value === book.fileName
-	}
-
-	function fileSuffixLabel(suffix : string) : string {
-		if (!suffix) return '文件'
-		return suffix.replace(/^\./, '').toUpperCase()
-	}
-
-	/**
-	 * 拆分章节字符串(如"第1章 章节标题")为章节序号和章节标题
-	 * 返回 { no, title }
-	 */
-	function splitChapter(raw : string) : { no : string; title : string } {
-		const text = (raw || '').trim()
-		const sep = text.search(/\s+/)
-		if (sep === -1) {
-			// 无空格：整串作为标题或序号
-			return /^\s*第?\s*\d*\s*章/i.test(text) ? { no: text, title: '' } : { no: '', title: text }
+/**
+ * 获取小说文件列表
+ */
+async function getNovelList(onMount: boolean = true) {
+	listLoading.value = true;
+	hasError.value = false;
+	try {
+		const res: any = await getAllFilesByFileType({
+			fileType: fileType.value,
+		});
+		if (res.code === 200 && res.data?.fileList?.length > 0) {
+			bookList.value = res.data.fileList;
+			filePath.value = res.data.filePath || '';
+		} else {
+			bookList.value = [];
 		}
-		return {
-			no: text.slice(0, sep).trim(),
-			title: text.slice(sep).trim()
+	} catch (error) {
+		console.error('获取小说列表失败:', error);
+		hasError.value = true;
+		bookList.value = [];
+	} finally {
+		// 左侧列表加载结束即结束 loading，不等待右侧章节加载
+		listLoading.value = false;
+	}
+
+	// 默认选中第一个（异步触发章节加载，不阻塞左侧列表 loading）
+	if (onMount && bookList.value.length > 0) {
+		await handleSelectBook(bookList.value[0]);
+	}
+}
+
+/**
+ * 选择小说：加载阅读进度 + 章节目录
+ */
+async function handleSelectBook(item: Book) {
+	if (!item || !item.fileName) return;
+
+	activeNovel.value = item;
+	currentBookId.value = item.fileName;
+	sourceChapterList.value = [];
+	currentEpisodeIndex.value = 0;
+	chapterScrollTarget.value = '';
+	readerVisible.value = false;
+
+	try {
+		await loadChapterMetadata();
+		await loadReadingProgress();
+	} catch (error) {
+		console.error('选择小说失败:', error);
+	}
+}
+
+/**
+ * 加载章节元数据（章节标题列表）
+ */
+async function loadChapterMetadata() {
+	if (!activeNovel.value) return;
+	chapterLoading.value = true;
+	try {
+		const item = activeNovel.value;
+		const fullPath = `${filePath.value}/${item.fileName}${item.fileSuffix}`;
+
+		const res: any = await getChapterInfo({ filePath: fullPath });
+
+		if (res.code === 200 && res.data?.chapters) {
+			sourceChapterList.value = res.data.chapters;
+			encoding.value = res.data.encoding || '';
+		} else {
+			sourceChapterList.value = [];
 		}
+	} finally {
+		chapterLoading.value = false;
+	}
+}
+
+/**
+ * 加载用户阅读进度，定位到上次阅读章节
+ */
+async function loadReadingProgress() {
+	if (!activeNovel.value) return;
+	try {
+		const item = activeNovel.value;
+		const novelRes: any = await getUserNovel({ novel_id: item.fileName });
+
+		let targetIndex = 0;
+		isNewRecord.value = true;
+
+		if (novelRes.code === 200 && novelRes.data && novelRes.data.length > 0) {
+			isNewRecord.value = false;
+			// 后端返回的 chapterNumber 可能是 1-based，转换为 0-based 索引
+			const savedChapterNum = novelRes.data[0].chapterNumber;
+			targetIndex = Math.max(Number(savedChapterNum) - 1 || 0, 0);
+		}
+
+		currentEpisodeIndex.value = targetIndex;
+		const raw = sourceChapterList.value[targetIndex] ?? '';
+		currentEpisodeTitle.value = getChapterTitle(raw) || getChapterNo(targetIndex, raw);
+
+		// 等待节点渲染后，自动滚动到当前阅读章节
+		nextTick(() => {
+			chapterScrollTarget.value = `ep-${targetIndex}`;
+		});
+	} catch (error) {
+		console.error('获取阅读进度失败:', error);
+	}
+}
+
+function handleSelectEpisode(index: number, title: string) {
+	currentEpisodeIndex.value = index;
+	currentEpisodeTitle.value = getChapterTitle(title) || getChapterNo(index, title);
+	readerVisible.value = true;
+	novelContent.value = '';
+	readingLoading.value = true;
+	getNovelDetail(index);
+}
+
+function closeReader() {
+	readerVisible.value = false;
+}
+
+/**
+ * 获取小说正文内容
+ */
+async function getNovelDetail(chapterNumber: number) {
+	if (!activeNovel.value || !filePath.value) {
+		readingLoading.value = false;
+		return;
 	}
 
-	function getChapterNo(index : number, raw : string) : string {
-		const { no } = splitChapter(raw)
-		return no || `第 ${index + 1} 章`
-	}
+	try {
+		const buffer: any = await getFile({
+			filePath: filePath.value,
+			fileName: `${activeNovel.value.fileName}${activeNovel.value.fileSuffix}`,
+			postType: 'chapterView',
+			chapterNumber: chapterNumber,
+		});
 
-	function getChapterTitle(raw : string) : string {
-		return splitChapter(raw).title
-	}
+		let text = '';
+		if (buffer && typeof buffer === 'object' && buffer.byteLength !== undefined) {
+			text = decodeChapterText(buffer, encoding.value);
+		} else if (typeof buffer === 'string') {
+			text = buffer;
+		}
 
-	/**
-	 * 获取小说文件列表
-	 */
-	async function getNovelList(onMount : boolean = true) {
-		listLoading.value = true
-		hasError.value = false
+		novelContent.value = formatContent(text);
+		readingLoading.value = false;
+	} catch (error) {
+		console.error('获取章节内容失败:', error);
+		novelContent.value = '加载章节内容失败，请稍后重试。';
+		readingLoading.value = false;
+	}
+}
+
+/**
+ * 多端兼容地将章节字节解码为文本。
+ * 后端 getFile 返回的内容通常是已转为 UTF-8 的中文文本，因此：
+ * - 首选严格 UTF-8 解码（用 fatal 模式校验字节合法性，避免出现乱码而不自知）
+ * - 若 UTF-8 校验失败（字节非法），再按后端 encoding 尝试 GBK 等中文编码解码
+ * - 无 TextDecoder 时，用 uni.arrayBufferToBase64 + 纯 JS UTF-8 解码兜底
+ */
+function decodeChapterText(buffer: ArrayBuffer, enc: string): string {
+	if (typeof TextDecoder !== 'undefined') {
+		// 1) 首选严格 UTF-8：字节非法会抛 RangeError
 		try {
-			const res : any = await getAllFilesByFileType({
-				fileType: fileType.value
-			})
-			if (res.code === 200 && res.data?.fileList?.length > 0) {
-				bookList.value = res.data.fileList
-				filePath.value = res.data.filePath || ''
-			} else {
-				bookList.value = []
-			}
-		} catch (error) {
-			console.error('获取小说列表失败:', error)
-			hasError.value = true
-			bookList.value = []
-		} finally {
-			// 左侧列表加载结束即结束 loading，不等待右侧章节加载
-			listLoading.value = false
-		}
-
-		// 默认选中第一个（异步触发章节加载，不阻塞左侧列表 loading）
-		if (onMount && bookList.value.length > 0) {
-			await handleSelectBook(bookList.value[0])
-		}
-	}
-
-	/**
-	 * 选择小说：加载阅读进度 + 章节目录
-	 */
-	async function handleSelectBook(item : Book) {
-		if (!item || !item.fileName) return
-
-		activeNovel.value = item
-		currentBookId.value = item.fileName
-		sourceChapterList.value = []
-		currentEpisodeIndex.value = 0
-		chapterScrollTarget.value = ''
-		readerVisible.value = false
-
-		try {
-			await loadChapterMetadata()
-			await loadReadingProgress()
-		} catch (error) {
-			console.error('选择小说失败:', error)
-		}
-	}
-
-	/**
-	 * 加载章节元数据（章节标题列表）
-	 */
-	async function loadChapterMetadata() {
-		if (!activeNovel.value) return
-		chapterLoading.value = true
-		try {
-			const item = activeNovel.value
-			const fullPath = `${filePath.value}/${item.fileName}${item.fileSuffix}`
-
-			const res : any = await getChapterInfo({ filePath: fullPath })
-
-			if (res.code === 200 && res.data?.chapters) {
-				sourceChapterList.value = res.data.chapters
-				encoding.value = res.data.encoding || ''
-			} else {
-				sourceChapterList.value = []
-			}
-		} finally {
-			chapterLoading.value = false
-		}
-	}
-
-	/**
-	 * 加载用户阅读进度，定位到上次阅读章节
-	 */
-	async function loadReadingProgress() {
-		if (!activeNovel.value) return
-		try {
-			const item = activeNovel.value
-			const novelRes : any = await getUserNovel({ novel_id: item.fileName })
-
-			let targetIndex = 0
-			isNewRecord.value = true
-
-			if (novelRes.code === 200 && novelRes.data && novelRes.data.length > 0) {
-				isNewRecord.value = false
-				// 后端返回的 chapterNumber 可能是 1-based，转换为 0-based 索引
-				const savedChapterNum = novelRes.data[0].chapterNumber
-				targetIndex = Math.max(Number(savedChapterNum) - 1 || 0, 0)
-			}
-
-			currentEpisodeIndex.value = targetIndex
-			const raw = sourceChapterList.value[targetIndex] ?? ''
-			currentEpisodeTitle.value = getChapterTitle(raw) || getChapterNo(targetIndex, raw)
-
-			// 等待节点渲染后，自动滚动到当前阅读章节
-			nextTick(() => {
-				chapterScrollTarget.value = `ep-${targetIndex}`
-			})
-		} catch (error) {
-			console.error('获取阅读进度失败:', error)
-		}
-	}
-
-	function handleSelectEpisode(index : number, title : string) {
-		currentEpisodeIndex.value = index
-		currentEpisodeTitle.value =
-			getChapterTitle(title) || getChapterNo(index, title)
-		readerVisible.value = true
-		novelContent.value = ''
-		readingLoading.value = true
-		getNovelDetail(index)
-	}
-
-	function closeReader() {
-		readerVisible.value = false
-	}
-
-	/**
-	   * 获取小说正文内容
-	   */
-	async function getNovelDetail(chapterNumber : number) {
-		if (!activeNovel.value || !filePath.value) {
-			readingLoading.value = false
-			return
-		}
-
-		try {
-			const buffer : any = await getFile({
-				filePath: filePath.value,
-				fileName: `${activeNovel.value.fileName}${activeNovel.value.fileSuffix}`,
-				postType: 'chapterView',
-				chapterNumber: chapterNumber,
-			});
-
-			let text = ''
-			if (buffer && typeof buffer === 'object' && buffer.byteLength !== undefined) {
-				text = decodeChapterText(buffer, encoding.value)
-			} else if (typeof buffer === 'string') {
-				text = buffer
-			}
-
-			novelContent.value = formatContent(text)
-			readingLoading.value = false
-		} catch (error) {
-			console.error('获取章节内容失败:', error);
-			novelContent.value = '加载章节内容失败，请稍后重试。'
-			readingLoading.value = false
-		}
-	}
-
-	/**
-	 * 多端兼容地将章节字节解码为文本。
-	 * 后端 getFile 返回的内容通常是已转为 UTF-8 的中文文本，因此：
-	 * - 首选严格 UTF-8 解码（用 fatal 模式校验字节合法性，避免出现乱码而不自知）
-	 * - 若 UTF-8 校验失败（字节非法），再按后端 encoding 尝试 GBK 等中文编码解码
-	 * - 无 TextDecoder 时，用 uni.arrayBufferToBase64 + 纯 JS UTF-8 解码兜底
-	 */
-	function decodeChapterText(buffer : ArrayBuffer, enc : string) : string {
-		if (typeof TextDecoder !== 'undefined') {
-			// 1) 首选严格 UTF-8：字节非法会抛 RangeError
-			try {
-				return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(buffer))
-			} catch (e) {
-				// 字节不是合法 UTF-8，可能为 GBK 等中文编码
-			}
-			// 2) 按后端 encoding 尝试（gbk 系列映射为 gbk）
-			try {
-				const label = normalizeEncoding(enc)
-				return new TextDecoder(label, { fatal: true }).decode(new Uint8Array(buffer))
-			} catch (e) {
-				// 3) encoding 不可用/不支持时，回退非 fatal UTF-8（尽量保住可识别字符）
-				return new TextDecoder('utf-8').decode(new Uint8Array(buffer))
-			}
-		}
-
-		return decodeUtf8FromBase64(buffer)
-	}
-
-	/**
-	 * 使用 uni.arrayBufferToBase64 + 纯 JS 解码 UTF-8（不依赖 TextDecoder / atob）
-	 */
-	function decodeUtf8FromBase64(buffer : ArrayBuffer) : string {
-		try {
-			const b64 = uni.arrayBufferToBase64(buffer as any)
-			const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-			let bytes : number[] = []
-			for (let i = 0; i < b64.length; i += 4) {
-				const e1 = b64chars.indexOf(b64[i])
-				const e2 = b64chars.indexOf(b64[i + 1])
-				const e3 = b64chars.indexOf(b64[i + 2])
-				const e4 = b64chars.indexOf(b64[i + 3])
-				bytes.push((e1 << 2) | (e2 >> 4))
-				if (e3 !== -1) bytes.push(((e2 & 15) << 4) | (e3 >> 2))
-				if (e4 !== -1) bytes.push(((e3 & 3) << 6) | e4)
-			}
-			let str = ''
-			for (let i = 0; i < bytes.length; i++) {
-				const c = bytes[i]
-				if (c < 0x80) {
-					str += String.fromCharCode(c)
-				} else if (c > 0xbf && c < 0xe0) {
-					str += String.fromCharCode(((c & 0x1f) << 6) | (bytes[i + 1] & 0x3f))
-					i++
-				} else if (c >= 0xe0 && c < 0xf0) {
-					str += String.fromCharCode(((c & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f))
-					i += 2
-				}
-			}
-			return str
+			return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(buffer));
 		} catch (e) {
-			return ''
+			// 字节不是合法 UTF-8，可能为 GBK 等中文编码
+		}
+		// 2) 按后端 encoding 尝试（gbk 系列映射为 gbk）
+		try {
+			const label = normalizeEncoding(enc);
+			return new TextDecoder(label, { fatal: true }).decode(new Uint8Array(buffer));
+		} catch (e) {
+			// 3) encoding 不可用/不支持时，回退非 fatal UTF-8（尽量保住可识别字符）
+			return new TextDecoder('utf-8').decode(new Uint8Array(buffer));
 		}
 	}
 
-	/**
-	 * 统一解码时的编码名称：将后端常见命名映射到 TextDecoder 支持的 label
-	 */
-	function normalizeEncoding(enc : string) : string {
-		if (!enc) return 'utf-8'
-		const e = enc.toLowerCase()
-		if (e === 'gb2312' || e === 'gbk' || e === 'gb18030') return 'gbk'
-		return e
-	}
+	return decodeUtf8FromBase64(buffer);
+}
 
-	/**
-	 * 格式化章节正文，去掉空行并转为段落
-	 */
-	function formatContent(raw : string) : string {
-		if (!raw) return ''
-		// 去掉首尾空白
-		let text = (raw || '').replace(/^\s+|\s+$/g, '')
-		return text
+/**
+ * 使用 uni.arrayBufferToBase64 + 纯 JS 解码 UTF-8（不依赖 TextDecoder / atob）
+ */
+function decodeUtf8FromBase64(buffer: ArrayBuffer): string {
+	try {
+		const b64 = uni.arrayBufferToBase64(buffer as any);
+		const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+		let bytes: number[] = [];
+		for (let i = 0; i < b64.length; i += 4) {
+			const e1 = b64chars.indexOf(b64[i]);
+			const e2 = b64chars.indexOf(b64[i + 1]);
+			const e3 = b64chars.indexOf(b64[i + 2]);
+			const e4 = b64chars.indexOf(b64[i + 3]);
+			bytes.push((e1 << 2) | (e2 >> 4));
+			if (e3 !== -1) bytes.push(((e2 & 15) << 4) | (e3 >> 2));
+			if (e4 !== -1) bytes.push(((e3 & 3) << 6) | e4);
+		}
+		let str = '';
+		for (let i = 0; i < bytes.length; i++) {
+			const c = bytes[i];
+			if (c < 0x80) {
+				str += String.fromCharCode(c);
+			} else if (c > 0xbf && c < 0xe0) {
+				str += String.fromCharCode(((c & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
+				i++;
+			} else if (c >= 0xe0 && c < 0xf0) {
+				str += String.fromCharCode(
+					((c & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f)
+				);
+				i += 2;
+			}
+		}
+		return str;
+	} catch (e) {
+		return '';
 	}
+}
 
-	onMounted(() => {
-		getNovelList()
-	})
+/**
+ * 统一解码时的编码名称：将后端常见命名映射到 TextDecoder 支持的 label
+ */
+function normalizeEncoding(enc: string): string {
+	if (!enc) return 'utf-8';
+	const e = enc.toLowerCase();
+	if (e === 'gb2312' || e === 'gbk' || e === 'gb18030') return 'gbk';
+	return e;
+}
+
+/**
+ * 格式化章节正文，去掉空行并转为段落
+ */
+function formatContent(raw: string): string {
+	if (!raw) return '';
+	// 去掉首尾空白
+	let text = (raw || '').replace(/^\s+|\s+$/g, '');
+	return text;
+}
+
+onMounted(() => {
+	getNovelList();
+});
 </script>
 
 <style scoped>
-	.page {
-		width: 100%;
-		height: 100%;
-		overflow: hidden;
-	}
+.page {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
 
-	.novel-container {
-		display: flex;
-		width: 100%;
-		height: 100%;
-		padding: 20rpx;
-		box-sizing: border-box;
-		background: #f3f5fb;
-	}
+.novel-container {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	padding: 20rpx;
+	box-sizing: border-box;
+	background: #f3f5fb;
+}
 
-	/* 左侧小说面板 */
-	.novel-panel {
-		flex: 1;
-		height: 100%;
-		display: flex;
-		flex-direction: column;
-		background-color: #ffffff;
-		border-radius: 24rpx;
-		box-shadow: 0 6rpx 24rpx rgba(31, 58, 147, 0.06);
-		overflow: hidden;
-	}
+/* 左侧小说面板 */
+.novel-panel {
+	flex: 1;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	background-color: #ffffff;
+	border-radius: 24rpx;
+	box-shadow: 0 6rpx 24rpx rgba(31, 58, 147, 0.06);
+	overflow: hidden;
+}
 
-	.panel-head {
-		padding: 24rpx 28rpx 18rpx;
-		display: flex;
-		flex-direction: column;
-		gap: 6rpx;
-		border-bottom: 1rpx solid #f0f2f8;
-		flex-shrink: 0;
-	}
+.panel-head {
+	padding: 24rpx 28rpx 18rpx;
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+	border-bottom: 1rpx solid #f0f2f8;
+	flex-shrink: 0;
+}
 
-	.panel-title-row {
-		display: flex;
-		align-items: center;
-		gap: 12rpx;
-	}
+.panel-title-row {
+	display: flex;
+	align-items: center;
+	gap: 12rpx;
+}
 
-	.panel-title-dot {
-		width: 10rpx;
-		height: 10rpx;
-		border-radius: 50%;
-		background-color: #4b7aff;
-	}
+.panel-title-dot {
+	width: 10rpx;
+	height: 10rpx;
+	border-radius: 50%;
+	background-color: #4b7aff;
+}
 
-	.panel-title {
-		font-size: 30rpx;
-		font-weight: 600;
-		color: #1f2329;
-	}
+.panel-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1f2329;
+}
 
-	.panel-sub {
-		font-size: 22rpx;
-		color: #9aa0b4;
-		padding-left: 22rpx;
-	}
+.panel-sub {
+	font-size: 22rpx;
+	color: #9aa0b4;
+	padding-left: 22rpx;
+}
 
-	.novel-scroll {
-		flex: 1;
-		height: 0;
-		padding: 8rpx 4rpx;
-		box-sizing: border-box;
-	}
+.novel-scroll {
+	flex: 1;
+	height: 0;
+	padding: 8rpx 4rpx;
+	box-sizing: border-box;
+}
 
-	.book-item {
-		display: flex;
-		align-items: center;
-		gap: 16rpx;
-		margin: 6rpx 12rpx;
-		padding: 18rpx 20rpx;
-		border-radius: 16rpx;
-		box-sizing: border-box;
-		transition: background-color 0.2s;
-		cursor: pointer;
-	}
+.book-item {
+	display: flex;
+	align-items: center;
+	gap: 16rpx;
+	margin: 6rpx 12rpx;
+	padding: 18rpx 20rpx;
+	border-radius: 16rpx;
+	box-sizing: border-box;
+	transition: background-color 0.2s;
+	cursor: pointer;
+}
 
-	.book-item:active {
-		background-color: #f0f2f8;
-	}
+.book-item:active {
+	background-color: #f0f2f8;
+}
 
-	.book-item-active {
-		background-color: #edf3ff;
-	}
+.book-item-active {
+	background-color: #edf3ff;
+}
 
-	.book-icon {
-		font-size: 36rpx;
-		flex-shrink: 0;
-	}
+.book-icon {
+	font-size: 36rpx;
+	flex-shrink: 0;
+}
 
-	.book-info {
-		flex: 1;
-		min-width: 0;
-	}
+.book-info {
+	flex: 1;
+	min-width: 0;
+}
 
-	.book-name {
-		display: block;
-		font-size: 30rpx;
-		font-weight: 600;
-		color: #333333;
-		line-height: 1.4;
-		word-break: break-all;
-	}
+.book-name {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #333333;
+	line-height: 1.4;
+	word-break: break-all;
+}
 
-	.book-item-active .book-name {
-		color: #2f6bff;
-	}
+.book-item-active .book-name {
+	color: #2f6bff;
+}
 
-	.book-tag {
-		display: inline-block;
-		margin-top: 8rpx;
-		font-size: 20rpx;
-		color: #4b7aff;
-		background-color: #edf3ff;
-		padding: 2rpx 14rpx;
-		border-radius: 18rpx;
-	}
+.book-tag {
+	display: inline-block;
+	margin-top: 8rpx;
+	font-size: 20rpx;
+	color: #4b7aff;
+	background-color: #edf3ff;
+	padding: 2rpx 14rpx;
+	border-radius: 18rpx;
+}
 
-	.gap {
-		width: 20rpx;
-		flex-shrink: 0;
-	}
+.gap {
+	width: 20rpx;
+	flex-shrink: 0;
+}
 
-	/* 右侧章节面板 */
-	.episode-panel {
-		flex: 1;
-		height: 100%;
-		display: flex;
-		flex-direction: column;
-		background-color: #ffffff;
-		border-radius: 24rpx;
-		box-shadow: 0 6rpx 24rpx rgba(31, 58, 147, 0.06);
-		overflow: hidden;
-	}
+/* 右侧章节面板 */
+.episode-panel {
+	flex: 1;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	background-color: #ffffff;
+	border-radius: 24rpx;
+	box-shadow: 0 6rpx 24rpx rgba(31, 58, 147, 0.06);
+	overflow: hidden;
+}
 
-	.episode-scroll {
-		flex: 1;
-		height: 0;
-		padding: 8rpx 4rpx;
-		box-sizing: border-box;
-	}
+.episode-scroll {
+	flex: 1;
+	height: 0;
+	padding: 8rpx 4rpx;
+	box-sizing: border-box;
+}
 
-	.episode-item {
-		margin: 6rpx 12rpx;
-		padding: 20rpx 24rpx;
-		border-radius: 16rpx;
-		box-sizing: border-box;
-		transition: background-color 0.2s;
-		cursor: pointer;
-	}
+.episode-item {
+	margin: 6rpx 12rpx;
+	padding: 20rpx 24rpx;
+	border-radius: 16rpx;
+	box-sizing: border-box;
+	transition: background-color 0.2s;
+	cursor: pointer;
+}
 
-	.episode-item:active {
-		background-color: #f0f2f8;
-	}
+.episode-item:active {
+	background-color: #f0f2f8;
+}
 
-	.episode-item-active {
-		background-color: #edf3ff;
-	}
+.episode-item-active {
+	background-color: #edf3ff;
+}
 
-	.episode-num {
-		display: block;
-		font-size: 28rpx;
-		font-weight: 600;
-		color: #4b7aff;
-		line-height: 1.4;
-	}
+.episode-num {
+	display: block;
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #4b7aff;
+	line-height: 1.4;
+}
 
-	.episode-title {
-		display: block;
-		font-size: 26rpx;
-		color: #666666;
-		line-height: 1.5;
-		margin-top: 6rpx;
-		word-break: break-all;
-	}
+.episode-title {
+	display: block;
+	font-size: 26rpx;
+	color: #666666;
+	line-height: 1.5;
+	margin-top: 6rpx;
+	word-break: break-all;
+}
 
-	.episode-item-active .episode-title {
-		color: #2f6bff;
-		font-weight: 500;
-	}
+.episode-item-active .episode-title {
+	color: #2f6bff;
+	font-weight: 500;
+}
 
-	/* 空/加载状态 */
-	.list-empty {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 20rpx;
-		padding: 60rpx 24rpx;
-	}
+/* 空/加载状态 */
+.list-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 20rpx;
+	padding: 60rpx 24rpx;
+}
 
-	.empty-text {
-		font-size: 26rpx;
-		color: #9aa0b4;
-	}
+.empty-text {
+	font-size: 26rpx;
+	color: #9aa0b4;
+}
 
-	.empty-action {
-		padding: 12rpx 36rpx;
-		font-size: 26rpx;
-		color: #4b7aff;
-		background-color: #edf3ff;
-		border-radius: 32rpx;
-	}
+.empty-action {
+	padding: 12rpx 36rpx;
+	font-size: 26rpx;
+	color: #4b7aff;
+	background-color: #edf3ff;
+	border-radius: 32rpx;
+}
 
-	/* 全屏阅读 */
-	.reader-mask {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		z-index: 999;
-		background-color: #f7f4ec;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
+/* 全屏阅读 */
+.reader-mask {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 999;
+	background-color: #f7f4ec;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
 
-	.reader {
-		width: 100%;
-		height: 100%;
-		background-color: #f7f4ec;
-		display: flex;
-		flex-direction: column;
-		position: relative;
-	}
+.reader {
+	width: 100%;
+	height: 100%;
+	background-color: #f7f4ec;
+	display: flex;
+	flex-direction: column;
+	position: relative;
+}
 
-	.reader-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 30rpx;
-		padding-top: calc(30rpx + var(--status-bar-height, 0px));
-		border-bottom: 1rpx solid #e8e2d4;
-	}
+.reader-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 30rpx;
+	padding-top: calc(30rpx + var(--status-bar-height, 0px));
+	border-bottom: 1rpx solid #e8e2d4;
+}
 
-	.reader-title {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-	}
+.reader-title {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
 
-	.reader-book-name {
-		font-size: 26rpx;
-		color: #999999;
-	}
+.reader-book-name {
+	font-size: 26rpx;
+	color: #999999;
+}
 
-	.reader-episode-title {
-		font-size: 34rpx;
-		font-weight: bold;
-		color: #333333;
-		margin-top: 6rpx;
-	}
+.reader-episode-title {
+	font-size: 34rpx;
+	font-weight: bold;
+	color: #333333;
+	margin-top: 6rpx;
+}
 
-	.reader-close {
-		font-size: 40rpx;
-		color: #999999;
-		padding: 10rpx;
-		line-height: 1;
-	}
+.reader-close {
+	font-size: 40rpx;
+	color: #999999;
+	padding: 10rpx;
+	line-height: 1;
+}
 
-	.reader-content {
-		flex: 1;
-		height: calc(100% - 120rpx);
-		padding: 30rpx;
-		box-sizing: border-box;
-	}
+.reader-content {
+	flex: 1;
+	height: calc(100% - 120rpx);
+	padding: 30rpx;
+	box-sizing: border-box;
+}
 
-	.reader-text-wrap {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 100%;
-	}
+.reader-text-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 100%;
+}
 
-	.reader-text-sec {
-		min-height: 100%;
-		display: flex;
-		flex-direction: column;
-	}
+.reader-text-sec {
+	min-height: 100%;
+	display: flex;
+	flex-direction: column;
+}
 
-	.reader-text {
-		font-size: 32rpx;
-		color: #333333;
-		line-height: 1.8;
-		text-align: justify;
-		white-space: pre-wrap;
-		word-break: break-all;
-	}
+.reader-text {
+	font-size: 32rpx;
+	color: #333333;
+	line-height: 1.8;
+	text-align: justify;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
 
-	.reader-placeholder {
-		font-size: 30rpx;
-		color: #bbbbbb;
-	}
+.reader-placeholder {
+	font-size: 30rpx;
+	color: #bbbbbb;
+}
 </style>

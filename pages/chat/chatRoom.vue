@@ -7,7 +7,8 @@
 					v-for="item in chat.messages"
 					:key="item.id || item.ts"
 					:class="['line', 'peer']"
-				>{{ formatMsg(item) }}</text>
+					>{{ formatMsg(item) }}</text
+				>
 			</view>
 			<view class="toolbar">
 				<input v-model="inputText" class="ipt" placeholder="输入内容" />
@@ -20,63 +21,63 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { useChatStore } from '@/store/modules/chat'
-import { useUserStore } from '@/store/modules/user'
+import { ref } from 'vue';
+import { onLoad, onUnload } from '@dcloudio/uni-app';
+import { useChatStore } from '@/store/modules/chat';
+import { useUserStore } from '@/store/modules/user';
 
-const WS_URL = 'ws://127.0.0.1:8080/ws/chat'
+const WS_URL = 'ws://127.0.0.1:8080/ws/chat';
 
-const chat = useChatStore()
-const userStore = useUserStore()
-const inputText = ref('')
+const chat = useChatStore();
+const userStore = useUserStore();
+const inputText = ref('');
 
 function formatMsg(m) {
 	// 预留：可额外展示 from / self
-	return (typeof m === 'string' ? m : m.content) || ''
+	return (typeof m === 'string' ? m : m.content) || '';
 }
 
 onLoad((options) => {
 	console.log(options);
 
-	chat.setEndpoint(WS_URL)
+	chat.setEndpoint(WS_URL);
 	// 指定当前私聊对象（用户名与后端 /user/queue/private 的映射一致）
 	chat.setChatUserInfo({
 		isGroup: false,
 		sendUserName: (userStore.userInfo && userStore.userInfo.username) || '',
-		receiveUserName: 'friend_a'
-	})
-	chat.connect()
-})
+		receiveUserName: 'friend_a',
+	});
+	chat.connect();
+});
 
 onUnload(() => {
 	// 保留长连接供它页复用；如需彻底断开关掉下一行
 	// chat.disconnect()
-})
+});
 
 function onSend() {
-	const text = (inputText.value || '').trim()
-	if (!text) return
+	const text = (inputText.value || '').trim();
+	if (!text) return;
 	chat.sendPrivateMessage({
 		sendUserName: userStore.userInfo && userStore.userInfo.username,
 		sendUserAvatar: (userStore.userInfo && userStore.userInfo.avatar) || '',
 		receiveUserName: 'friend_a',
 		receiveUserAvatar: '',
 		sendUserId: userStore.userInfo && userStore.userInfo.id,
-		content: text
-	})
-	inputText.value = ''
+		content: text,
+	});
+	inputText.value = '';
 }
 
 function onDisconnect() {
-	chat.disconnect()
+	chat.disconnect();
 }
 
 function onReconnect() {
-	chat.disconnect()
+	chat.disconnect();
 	// 复位重连计数再建立连接（Pinia 可直接写入 state）
-	chat.reconnectAttempts = 0
-	chat.connect(chat.chatUserInfo)
+	chat.reconnectAttempts = 0;
+	chat.connect(chat.chatUserInfo);
 }
 </script>
 

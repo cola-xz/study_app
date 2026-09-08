@@ -2,6 +2,6 @@
 declare var process: {
 	env: {
 		/** 当前运行环境 */
-		NODE_ENV: 'development' | 'staging' | 'production'
-	}
-}
+		NODE_ENV: 'development' | 'production';
+	};
+};

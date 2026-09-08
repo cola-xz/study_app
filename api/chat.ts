@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request'
+import { get, post } from '@/utils/request';
 
 /**
  * 聊天相关后端接口
@@ -8,49 +8,49 @@ import { get, post } from '@/utils/request'
  */
 
 export interface RecordQuery {
-	sendUserId?: string
-	receiveUserId?: string
-	isGroup?: number
-	groupId?: string
-	page?: number
-	size?: number
+	sendUserId?: string;
+	receiveUserId?: string;
+	isGroup?: number;
+	groupId?: string;
+	page?: number;
+	size?: number;
 }
 
 export interface SaveRecordParams {
-	id?: string
-	sendUserId?: string
-	receiveUserId?: string
-	type?: string
-	content?: string
-	isGroup?: number
-	groupId?: string
+	id?: string;
+	sendUserId?: string;
+	receiveUserId?: string;
+	type?: string;
+	content?: string;
+	isGroup?: number;
+	groupId?: string;
 }
 
 /** 好友列表 */
 export function getFriendList(data: any): Promise<any> {
-	return post<any>('/getFriendList', data)
+	return post<any>('/getFriendList', data);
 }
 
 /** 历史记录查询（分页） */
 export function getHistoryRecord(params: RecordQuery): Promise<any> {
 	// TODO 后端地址未定：示例 get('/chat/history', params)
-	return Promise.resolve({ code: 200, page: params.page || 1, data: [] })
+	return Promise.resolve({ code: 200, page: params.page || 1, data: [] });
 }
 
 /** 会话/消息记录列表 */
 export function getMessageRecord(params: RecordQuery): Promise<any> {
 	// TODO get('/chat/record', params)
-	return Promise.resolve({ code: 200, data: [] })
+	return Promise.resolve({ code: 200, data: [] });
 }
 
 /** 持久化一条发送过的消息 */
 export function addMessageRecord(data: SaveRecordParams): Promise<any> {
 	// TODO post('/chat/record', data)
-	return Promise.resolve({ code: 200, data: null })
+	return Promise.resolve({ code: 200, data: null });
 }
 
 /** 拉取未读消息数 */
 export function getUnreadCount(): Promise<any> {
 	// TODO get('/chat/unread')
-	return Promise.resolve({ code: 200, data: { count: 0 } })
+	return Promise.resolve({ code: 200, data: { count: 0 } });
 }

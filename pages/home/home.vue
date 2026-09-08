@@ -23,21 +23,21 @@
 </template>
 
 <script lang="ts" setup>
-import { onShow } from '@dcloudio/uni-app'
-import { clearLoginState } from '@/utils/request'
-import { getUserInfo } from '@/api/user'
-import { isLogin, ROUTES } from '@/utils/router'
-import { useUserStore } from '@/store/modules/user'
+import { onShow } from '@dcloudio/uni-app';
+import { clearLoginState } from '@/utils/request';
+import { getUserInfo } from '@/api/user';
+import { isLogin, ROUTES } from '@/utils/router';
+import { useUserStore } from '@/store/modules/user';
 
 const userStore = useUserStore();
 
 onShow(() => {
 	// 未登录时不允许停留在本页，直接回到登录页
 	if (!isLogin()) {
-		uni.reLaunch({ url: ROUTES.login })
-		return
+		uni.reLaunch({ url: ROUTES.login });
+		return;
 	}
-})
+});
 
 function handleSystem() {
 	let homeInfo = userStore.getUserInfo;
@@ -48,7 +48,7 @@ function handleSystem() {
 	} else {
 		toPath = '/pages/appcenter/video';
 	}
-	uni.reLaunch({ url: toPath })
+	uni.reLaunch({ url: toPath });
 }
 
 function handleLogout() {
@@ -59,73 +59,73 @@ function handleLogout() {
 			if (res.confirm) {
 				userStore.logout();
 			}
-		}
-	})
+		},
+	});
 }
 </script>
 
 <style scoped>
-	.container {
-		width: calc(100vw - 60rpx);
-		height: calc(100vh - 60rpx);
-		overflow-y: hidden;
-		background-color: #f5f6fa;
-		padding: 30rpx;
-	}
+.container {
+	width: calc(100vw - 60rpx);
+	height: calc(100vh - 60rpx);
+	overflow-y: hidden;
+	background-color: #f5f6fa;
+	padding: 30rpx;
+}
 
-	.header {
-		padding: 40rpx 20rpx;
-	}
+.header {
+	padding: 40rpx 20rpx;
+}
 
-	.title {
-		font-size: 48rpx;
-		font-weight: bold;
-		color: #333333;
-		display: block;
-	}
+.title {
+	font-size: 48rpx;
+	font-weight: bold;
+	color: #333333;
+	display: block;
+}
 
-	.sub-title {
-		font-size: 26rpx;
-		color: #999999;
-		margin-top: 12rpx;
-	}
+.sub-title {
+	font-size: 26rpx;
+	color: #999999;
+	margin-top: 12rpx;
+}
 
-	.card {
-		background-color: #ffffff;
-		border-radius: 16rpx;
-		padding: 20rpx 30rpx;
-		margin-top: 20rpx;
-	}
+.card {
+	background-color: #ffffff;
+	border-radius: 16rpx;
+	padding: 20rpx 30rpx;
+	margin-top: 20rpx;
+}
 
-	.card-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24rpx 0;
-		border-bottom: 1rpx solid #f0f0f0;
-	}
+.card-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 24rpx 0;
+	border-bottom: 1rpx solid #f0f0f0;
+}
 
-	.card-item:last-child {
-		border-bottom: none;
-	}
+.card-item:last-child {
+	border-bottom: none;
+}
 
-	.card-label {
-		font-size: 28rpx;
-		color: #666666;
-	}
+.card-label {
+	font-size: 28rpx;
+	color: #666666;
+}
 
-	.card-value {
-		font-size: 28rpx;
-		color: #333333;
-	}
+.card-value {
+	font-size: 28rpx;
+	color: #333333;
+}
 
-	.system-btn {
-		margin-top: 60rpx;
-		border-radius: 12rpx;
-	}
+.system-btn {
+	margin-top: 60rpx;
+	border-radius: 12rpx;
+}
 
-	.logout-btn {
-		margin-top: 60rpx;
-		border-radius: 12rpx;
-	}
+.logout-btn {
+	margin-top: 60rpx;
+	border-radius: 12rpx;
+}
 </style>

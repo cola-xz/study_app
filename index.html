@@ -6,6 +6,7 @@
 			/* 屏蔽 uni统计(uni-stat) 上报：仅拦 XHR/fetch/sendBeacon，不影响任何静态图片 */
 			(function() {
 				var HOST = 'tongji-collector.dcloud.net.cn'
+
 				function blocked(url) {
 					return typeof url === 'string' && url.indexOf(HOST) !== -1
 				}
@@ -27,8 +28,16 @@
 						var url = typeof input === 'string' ? input : (input && input.url)
 						if (blocked(url)) {
 							return new Promise(function(r) {
-								r({ ok: true, status: 204, json: function() { return Promise.resolve({}) },
-									text: function() { return Promise.resolve('') } })
+								r({
+									ok: true,
+									status: 204,
+									json: function() {
+										return Promise.resolve({})
+									},
+									text: function() {
+										return Promise.resolve('')
+									}
+								})
 							})
 						}
 						return _fetch.apply(this, arguments)

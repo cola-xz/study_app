@@ -1,29 +1,29 @@
-import { get, post } from '@/utils/request'
+import { get, post } from '@/utils/request';
 
 /**
  * 获取小说列表
  */
 export function getAllFilesByFileType(data: any): Promise<any> {
-	return post<any>('/getAllFilesByFileType', data)
+	return post<any>('/getAllFilesByFileType', data);
 }
 
 /**
  * 获取用户阅读的集数
  */
 export function getUserNovel(data: any): Promise<any> {
-	return post<any>('/getUserNovel', data)
+	return post<any>('/getUserNovel', data);
 }
 
 /**
  * 获取小说集数
  */
 export function getChapterInfo(data: any): Promise<any> {
-	return post<any>('/getChapterInfo', data)
+	return post<any>('/getChapterInfo', data);
 }
 
 /**
  * 获取上传目录信息（树形结构）
  */
 export function getUploadInfo(data: any): Promise<any> {
-	return post<any>('/getUploadInfo', data)
+	return post<any>('/getUploadInfo', data);
 }

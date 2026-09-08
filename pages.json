@@ -1,6 +1,5 @@
 {
-	"pages": [
-		{
+	"pages": [{
 			"path": "pages/system/login",
 			"style": {
 				"navigationBarTitleText": "登录",

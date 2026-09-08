@@ -9,17 +9,17 @@
 /** 环境配置类型定义 */
 export interface EnvConfig {
 	/** 环境标识 */
-	env: 'development' | 'staging' | 'production'
+	env: 'development' | 'staging' | 'production';
 	/** 接口请求基础地址 */
-	baseUrl: string
+	baseUrl: string;
 	/** 应用ID */
-	appId: string
+	appId: string;
 	/** 应用名称 */
-	appName: string
+	appName: string;
 	/** 是否开启调试 */
-	debug: boolean
+	debug: boolean;
 	/** 版本号 */
-	version: string
+	version: string;
 }
 
 /** 开发环境配置 */
@@ -31,8 +31,8 @@ const development: EnvConfig = {
 	appId: 'dev-app-id',
 	appName: 'study_app',
 	debug: true,
-	version: '1.0.0'
-}
+	version: '1.0.0',
+};
 
 /** 生产环境配置 */
 const production: EnvConfig = {
@@ -41,23 +41,23 @@ const production: EnvConfig = {
 	appId: 'prod-app-id',
 	appName: 'study_app',
 	debug: false,
-	version: '1.0.0'
-}
+	version: '1.0.0',
+};
 
 /** 当前环境 */
-const NODE_ENV = process.env.NODE_ENV || 'development'
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 /** 根据当前环境获取对应配置 */
 const envConfigMap: Record<string, EnvConfig> = {
 	development,
-	production
-}
+	production,
+};
 
 /** 导出当前环境配置 */
-const envConfig: EnvConfig = envConfigMap[NODE_ENV]
+const envConfig: EnvConfig = envConfigMap[NODE_ENV];
 
 /** 导出所有环境配置 */
-export { development, production }
+export { development, production };
 
 /** 默认导出当前环境配置 */
-export default envConfig
+export default envConfig;

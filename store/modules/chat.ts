@@ -21,12 +21,7 @@ import {
 	type StompFrame,
 } from '@/utils/stomp';
 import { getToken } from '@/utils/request';
-import {
-	getHistoryRecord,
-	addMessageRecord,
-	getUnreadCount,
-	getMessageRecord,
-} from '@/api/chat';
+import { getHistoryRecord, addMessageRecord, getUnreadCount, getMessageRecord } from '@/api/chat';
 import { getRequestFriendList } from '@/api/user';
 import { useUserStore } from '@/store/modules/user';
 import { generateUUID } from '@/utils/uuid';
@@ -247,7 +242,8 @@ export const useChatStore = defineStore({
 				const s = received.sendUserName || '';
 				const r = received.receiveUserName || '';
 				if (
-					(cur?.sendUserName && cur?.receiveUserName) &&
+					cur?.sendUserName &&
+					cur?.receiveUserName &&
 					((s === cur.sendUserName && r === cur.receiveUserName) ||
 						(s === cur.receiveUserName && r === cur.sendUserName))
 				) {
@@ -269,8 +265,7 @@ export const useChatStore = defineStore({
 				// 尝试把被加入的群并入 messageRecordList
 				const uid = this.currentUserId();
 				const exists = this.messageRecordList.findIndex(
-					(it: any) =>
-						it?.receiveUserInfo?.id == (received?.otherParams?.groupId || '')
+					(it: any) => it?.receiveUserInfo?.id == (received?.otherParams?.groupId || '')
 				);
 				if (exists === -1) {
 					this.messageRecordList!.push({

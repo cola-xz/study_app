@@ -1,15 +1,9 @@
 <template>
 	<app-layout>
-		<view>
-
-		</view>
+		<view> </view>
 	</app-layout>
 </template>
 
-<script setup>
+<script setup></script>
 
-</script>
-
-<style>
-
-</style>
+<style></style>
