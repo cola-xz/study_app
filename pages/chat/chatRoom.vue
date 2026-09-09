@@ -1,53 +1,36 @@
 <template>
 	<app-layout>
-		<view class="room">
-			<view class="state">连接状态：{{ chat.stateText }}</view>
-			<view class="log">
-				<text
-					v-for="item in chat.messages"
-					:key="item.id || item.ts"
-					:class="['line', 'peer']"
-					>{{ formatMsg(item) }}</text
-				>
-			</view>
-			<view class="toolbar">
-				<input v-model="inputText" class="ipt" placeholder="输入内容" />
-				<button @tap="onSend">发送</button>
-				<button @tap="onDisconnect">断开</button>
-				<button @tap="onReconnect">重连</button>
-			</view>
-		</view>
+		<uni-list :border="true">
+			<uni-list-chat
+				v-for="(item, index) in friendList"
+				:key="index"
+				:title="item.username"
+				:avatar="item.avatarUrl"
+				note="您收到一条新的消息"
+				time="2020-02-02 20:20"
+				badge-text="12"
+			></uni-list-chat>
+		</uni-list>
 	</app-layout>
 </template>
 
-<script setup>
+<script lang="ts" setup>
 import { ref } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useChatStore } from '@/store/modules/chat';
 import { useUserStore } from '@/store/modules/user';
-
-const WS_URL = 'ws://127.0.0.1:8080/ws/chat';
+import envConfig from '@/env/index';
+import { getMessageRecord } from '@/api/chat';
 
 const chat = useChatStore();
 const userStore = useUserStore();
 const inputText = ref('');
 
-function formatMsg(m) {
-	// 预留：可额外展示 from / self
-	return (typeof m === 'string' ? m : m.content) || '';
-}
-
 onLoad((options) => {
-	console.log(options);
-
-	chat.setEndpoint(WS_URL);
-	// 指定当前私聊对象（用户名与后端 /user/queue/private 的映射一致）
-	chat.setChatUserInfo({
-		isGroup: false,
-		sendUserName: (userStore.userInfo && userStore.userInfo.username) || '',
-		receiveUserName: 'friend_a',
-	});
+	// 链接ws
 	chat.connect();
+	// 获取消息列表
+	getMessageList();
 });
 
 onUnload(() => {
@@ -55,29 +38,54 @@ onUnload(() => {
 	// chat.disconnect()
 });
 
-function onSend() {
-	const text = (inputText.value || '').trim();
-	if (!text) return;
-	chat.sendPrivateMessage({
-		sendUserName: userStore.userInfo && userStore.userInfo.username,
-		sendUserAvatar: (userStore.userInfo && userStore.userInfo.avatar) || '',
-		receiveUserName: 'friend_a',
-		receiveUserAvatar: '',
-		sendUserId: userStore.userInfo && userStore.userInfo.id,
-		content: text,
+let friendList: any = ref([]);
+async function getMessageList() {
+	friendList.value = [];
+	const res: any = await getMessageRecord({
+		sendUserId: userStore.userInfo.id,
 	});
-	inputText.value = '';
+	if (res.code == 200) {
+		res.data.forEach((element: any) => {
+			console.log(element);
+			if (element.groupId) {
+				friendList.value.push({
+					avatarUrl: '',
+					realName: element.content,
+					username: element.content,
+					id: element.groupId,
+				});
+			} else {
+				friendList.value.push({
+					avatarUrl: setAvatarUrl(element.userInfo.avatarUrl),
+					realName: element.userInfo.realName,
+					username: element.userInfo.username,
+					id: element.userInfo.id,
+				});
+			}
+		});
+	}
 }
 
-function onDisconnect() {
-	chat.disconnect();
-}
+function setAvatarUrl(getUrl: string | null): string {
+  let avatarUrl: string = '';
+  console.log(getUrl);
+  if (getUrl) {
+    let postUrl: string = '/fileView/fileUploads';
+    let keyUrl: string = envConfig.baseUrl;
 
-function onReconnect() {
-	chat.disconnect();
-	// 复位重连计数再建立连接（Pinia 可直接写入 state）
-	chat.reconnectAttempts = 0;
-	chat.connect(chat.chatUserInfo);
+    // 检查是否已经包含了完整的 base URL + postUrl
+    if (getUrl.includes(`${keyUrl}${postUrl}`)) {
+      // 已经包含完整前缀，直接返回
+      avatarUrl = getUrl;
+    } else if (getUrl.includes('/fileView/fileUploads')) {
+      // 只包含 postUrl，拼接 keyUrl
+      avatarUrl = `${keyUrl}${getUrl}`;
+    } else {
+      // 不包含任何前缀，完整拼接
+      avatarUrl = `${keyUrl}${postUrl}${getUrl}`;
+    }
+  }
+  return avatarUrl;
 }
 </script>
 

@@ -12,6 +12,8 @@ export interface EnvConfig {
 	env: 'development' | 'staging' | 'production';
 	/** 接口请求基础地址 */
 	baseUrl: string;
+	/** ws的接口地址 */
+	wsUrl: string;
 	/** 应用ID */
 	appId: string;
 	/** 应用名称 */
@@ -28,6 +30,7 @@ const development: EnvConfig = {
 	// H5 开发时使用相对路径，交由 manifest.json 中 h5.devServer.proxy 转发到目标后端，
 	// 从而规避跨域。App/小程序端如需直连真实地址，请改为 'http://10.1.3.175:8080/web/api'。
 	baseUrl: 'http://10.1.3.175:8080/web/api',
+	wsUrl: 'ws://127.0.0.1:8080',
 	appId: 'dev-app-id',
 	appName: 'study_app',
 	debug: true,
@@ -38,6 +41,7 @@ const development: EnvConfig = {
 const production: EnvConfig = {
 	env: 'production',
 	baseUrl: 'http://10.1.3.175:8080/web/api',
+	wsUrl: 'ws://192.168.129.200:8080',
 	appId: 'prod-app-id',
 	appName: 'study_app',
 	debug: false,

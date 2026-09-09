@@ -25,6 +25,7 @@ import { getHistoryRecord, addMessageRecord, getUnreadCount, getMessageRecord } 
 import { getRequestFriendList } from '@/api/user';
 import { useUserStore } from '@/store/modules/user';
 import { generateUUID } from '@/utils/uuid';
+import envConfig from '@/env/index';
 
 /** 消息类型枚举 */
 export enum MessageType {
@@ -85,9 +86,6 @@ export const useChatStore = defineStore({
 		/** STOMP 总线引用（connect 内部维护），对外只读 */
 		_wsActive: false,
 
-		/** 服务端 ws/wss 端点，需先 setEndpoint 注入 */
-		endpoint: '',
-
 		isConnected: false, // 是否已连接
 		isConnecting: false, // 是否正在连接
 		messages: [] as ChatMessage[], // 当前会话实时消息
@@ -119,20 +117,7 @@ export const useChatStore = defineStore({
 	},
 
 	actions: {
-		/**
-		 * 设置 STOMP 服务端点。必须在 connect 前调用。
-		 *  ws://127.0.0.1:8080/ws/chat   （开发：内网明文）
-		 *  wss://yourdomain.com/ws/chat   （生产/公网：须 TLS）
-		 */
-		setEndpoint(url: string) {
-			this.endpoint = url;
-		},
-
 		connect(chatInfo?: ChatMessage) {
-			if (!this.endpoint) {
-				toast('请先调用 setEndpoint 设置 ws 地址');
-				return;
-			}
 			const token = getToken();
 			// 未登录不可建立聊天
 			if (!token) {
@@ -153,7 +138,7 @@ export const useChatStore = defineStore({
 
 			try {
 				wsConnect({
-					url: this.endpoint,
+					url: `${envConfig.wsUrl}/ws/chat`,
 					headers,
 					heartbeat: 4000,
 					// —— CONNECTED —— 对应参考 onConnect ——
@@ -178,7 +163,7 @@ export const useChatStore = defineStore({
 						// 历史会话里的群聊频道
 						this.subscribeGroupTopics();
 						// 拉一次历史/未读
-						this.fetchInitialData();
+						// this.fetchInitialData();
 					},
 					// —— 断开 ——
 					onState: (s: StompState) => {

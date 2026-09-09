@@ -37,7 +37,7 @@
 		{
 			"path": "pages/chat/chatRoom",
 			"style": {
-				"navigationBarTitleText": "聊天",
+				"navigationBarTitleText": "消息",
 				"navigationStyle": "custom"
 			}
 		},

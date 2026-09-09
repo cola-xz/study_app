@@ -31,16 +31,15 @@ export function getFriendList(data: any): Promise<any> {
 	return post<any>('/getFriendList', data);
 }
 
+/** 消息列表 */
+export function getMessageRecord(data: any): Promise<any> {
+	return post<any>('/getMessageRecord', data);
+}
+
 /** 历史记录查询（分页） */
 export function getHistoryRecord(params: RecordQuery): Promise<any> {
 	// TODO 后端地址未定：示例 get('/chat/history', params)
 	return Promise.resolve({ code: 200, page: params.page || 1, data: [] });
-}
-
-/** 会话/消息记录列表 */
-export function getMessageRecord(params: RecordQuery): Promise<any> {
-	// TODO get('/chat/record', params)
-	return Promise.resolve({ code: 200, data: [] });
 }
 
 /** 持久化一条发送过的消息 */
