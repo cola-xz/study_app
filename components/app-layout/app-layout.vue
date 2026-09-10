@@ -64,7 +64,30 @@
 				:class="{ 'bottom-menu-item-active': isActive(item) }"
 				@click="handleMenuTap(item)"
 			>
-				<text class="bottom-menu-item-title">{{ item.title }}</text>
+				<view class="tab-container">
+					<view
+						class="tab-icon-wrap"
+						:class="{ 'tab-icon-wrap-active': isActive(item) }"
+					>
+						<template v-if="item.iconIsOnline === 0">
+							<uni-icons
+								:color="isActive(item) ? '#2979ff' : '#9296a1'"
+								:type="item.icon"
+								size="30"
+							></uni-icons>
+						</template>
+						<template v-if="item.iconIsOnline === 1">
+							<SvgIcon
+								:showUpload="false"
+								:source="'online'"
+								:name="item.icon"
+								:size="30"
+								:color="isActive(item) ? '#2979ff' : '#9296a1'"
+							/>
+						</template>
+					</view>
+					<text class="bottom-menu-item-title">{{ item.title }}</text>
+				</view>
 			</view>
 		</view>
 	</view>
@@ -75,6 +98,7 @@ import { ref, computed, watch } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { useRouterStore } from '@/store/modules/router';
 import { getCurrentPage, getRouteMeta, guardCurrentPage } from '@/utils/router';
+import { SvgIcon } from '@/components/SvgIcon/index';
 
 const props = withDefaults(
 	defineProps<{
@@ -91,6 +115,8 @@ interface MenuItem {
 	name: string;
 	title: string;
 	path: string;
+	icon: string;
+	iconIsOnline: number;
 	children?: MenuItem[];
 }
 
@@ -375,8 +401,11 @@ function handleBack() {
 	z-index: 100;
 	display: flex;
 	align-items: center;
-	background-color: #ffffff;
-	box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.06);
+	background-color: rgba(255, 255, 255, 0.92);
+	backdrop-filter: blur(20rpx);
+	-webkit-backdrop-filter: blur(20rpx);
+	border-top: 1rpx solid rgba(0, 0, 0, 0.05);
+	box-shadow: 0 -4rpx 24rpx rgba(31, 45, 89, 0.06);
 	padding-bottom: constant(safe-area-inset-bottom);
 	padding-bottom: env(safe-area-inset-bottom);
 }
@@ -389,13 +418,34 @@ function handleBack() {
 	height: 120rpx;
 }
 
-.bottom-menu-item-title {
-	font-size: 26rpx;
-	color: #999999;
+.tab-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
 }
 
-.bottom-menu-item-active {
-	border-top: 4rpx solid #2979ff;
+.tab-icon-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 72rpx;
+	height: 56rpx;
+	border-radius: 28rpx;
+	transition: background-color 0.25s ease, transform 0.25s ease;
+}
+
+.tab-icon-wrap-active {
+	background-color: rgba(41, 121, 255, 0.12);
+	transform: translateY(-2rpx);
+}
+
+.bottom-menu-item-title {
+	margin-top: 8rpx;
+	text-align: center;
+	font-size: 20rpx;
+	color: #9296a1;
+	transition: color 0.25s ease;
 }
 
 .bottom-menu-item-active .bottom-menu-item-title {

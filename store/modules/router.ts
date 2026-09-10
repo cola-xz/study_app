@@ -42,6 +42,7 @@ export const useRouterStore = defineStore({
 						createBy: string;
 						updateBy: string;
 						icon: string;
+						iconIsOnline: number;
 						isStatic: number;
 						order_id: number;
 						children?: MenuData[];
@@ -67,6 +68,8 @@ export const useRouterStore = defineStore({
 									name: element.name,
 									title: element.title,
 									path: element.path,
+									icon: element.icon,
+									iconIsOnline: element.iconIsOnline,
 									children:
 										element.children && element.children.length > 0
 											? filterMenus(element.children)

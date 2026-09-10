@@ -46,7 +46,6 @@ async function getMessageList() {
 	});
 	if (res.code == 200) {
 		res.data.forEach((element: any) => {
-			console.log(element);
 			if (element.groupId) {
 				friendList.value.push({
 					avatarUrl: '',
@@ -68,7 +67,6 @@ async function getMessageList() {
 
 function setAvatarUrl(getUrl: string | null): string {
   let avatarUrl: string = '';
-  console.log(getUrl);
   if (getUrl) {
     let postUrl: string = '/fileView/fileUploads';
     let keyUrl: string = envConfig.baseUrl;
