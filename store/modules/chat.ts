@@ -1,15 +1,12 @@
 /**
  * 「聊天」Pinia store
  *
- * 依据参考工程结构改写，保留其方法名/订阅目的地/消息对象语义，
- * 但把仅适用于 Web 的依赖换成 uni-app 等价实现：
- *   @stomp/stompjs 的 Client       -> @/utils/stomp（uni.connectSocket 总线，多端可用）
- *   ant-design-vue 的 message.*    -> 本项目 toast 封装（uni.showToast / 记录日志）
- *   localStorage                   -> @/utils/request.getToken()
- *   import.meta.env.VITE_APP_WS_URL-> 需在 connect 前用 setEndpoint 显式注入
- *   还原用的 @/api/*、@/utils/uuid 均已补齐（api 中含占位实现）。
- *
- * 使用前务必 setEndpoint；页面仅需调 useChatStore() 的 actions，消息自动进 state。
+ * 说明：
+ *  - 底层 WS 走 @/utils/stomp（基于 uni.connectSocket 的轻量 STOMP 客户端，多端可用）。
+ *  - 鉴权 token 取 @/utils/request.getToken()，WS 地址取 @/env 的 wsUrl。
+ *  - 后端接口目前多为占位实现，为保证前端可完整跑通，store 内置了
+ *    mock 数据（会话列表 / 历史消息 / 好友列表 / 好友申请）。
+ *    接口就绪后把 MOCK 开关置为 false 即可，无需改动页面。
  */
 import { defineStore } from 'pinia';
 import {
@@ -26,6 +23,9 @@ import { getRequestFriendList } from '@/api/user';
 import { useUserStore } from '@/store/modules/user';
 import { generateUUID } from '@/utils/uuid';
 import envConfig from '@/env/index';
+
+/** 是否使用内置 mock 数据（后端接口未就绪时置 true） */
+const USE_MOCK = false;
 
 /** 消息类型枚举 */
 export enum MessageType {
@@ -45,6 +45,7 @@ export interface ChatMessage {
 	receiveUserId?: string;
 	receiveUserAvatar?: string;
 	content?: string;
+	contentDate?: string;
 	type?: MessageType | string;
 	isGroup?: boolean;
 	groupId?: string;
@@ -52,6 +53,21 @@ export interface ChatMessage {
 	messageType?: string;
 	otherParams?: Record<any, string>;
 	[key: string]: any;
+}
+
+/** 会话项：左侧「消息列表」使用 */
+export interface ConversationItem {
+	receiveUserInfo: {
+		id: string;
+		username: string;
+		realName?: string;
+		avatarUrl?: string | string[];
+		isGroup?: boolean;
+	};
+	sendUserInfo?: Record<string, any>;
+	lastMessage?: string;
+	lastTime?: string;
+	unreadCount?: number;
 }
 
 export interface ChatState {
@@ -69,71 +85,106 @@ export interface ChatRoom {
 	lastMessage?: ChatMessage;
 }
 
-/** 统一的轻提示入口（替代 antd message，N 端可用） */
+/** 统一的轻提示入口（替代 antd message，多端可用） */
 function toast(text: string, icon: 'none' | 'success' | 'error' | 'loading' = 'none') {
 	uni.showToast({ title: text, icon, duration: 2000 });
 }
 
 function warnLog(...args: any[]) {
-	// 参考里各处用 console.warn，保留便于排查，但不用全局弹窗刷屏
 	console.warn('[chat-store]', ...args);
+}
+
+/** 时间戳格式化：当天显示 HH:mm，昨天显示「昨天 HH:mm」，更早显示 MM-DD HH:mm */
+export function formatChatTime(input?: string): string {
+	if (!input) return '';
+	// 兼容 ISO（2026-09-04T02:53:25.000+00:00）与普通（2026-09-04 10:00:00）
+	let d = new Date(input);
+	if (isNaN(d.getTime())) {
+		d = new Date(input.replace(/-/g, '/').replace('T', ' ').replace(/\.\d+.*$/, ''));
+	}
+	if (isNaN(d.getTime())) return input;
+	const now = new Date();
+	const pad = (n: number) => String(n).padStart(2, '0');
+	const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	const sameDay =
+		d.getFullYear() === now.getFullYear() &&
+		d.getMonth() === now.getMonth() &&
+		d.getDate() === now.getDate();
+	if (sameDay) return hm;
+	const y = new Date(now.getTime() - 24 * 3600 * 1000);
+	const isYesterday =
+		d.getFullYear() === y.getFullYear() &&
+		d.getMonth() === y.getMonth() &&
+		d.getDate() === y.getDate();
+	if (isYesterday) return `昨天 ${hm}`;
+	return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hm}`;
+}
+
+function nowStr(): string {
+	const d = new Date();
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+		d.getHours()
+	)}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 export const useChatStore = defineStore({
 	id: 'chat',
 
 	state: (): any => ({
-		/** STOMP 总线引用（connect 内部维护），对外只读 */
+		/** 底层连接是否活跃（stomp 总线） */
 		_wsActive: false,
 
 		isConnected: false, // 是否已连接
 		isConnecting: false, // 是否正在连接
 		messages: [] as ChatMessage[], // 当前会话实时消息
 		currentChat: {} as ChatMessage | {}, // 当前聊天对象信息
-		unreadCount: 0, // 未读
+		unreadCount: 0, // 未读总数
 		reconnectAttempts: 0, // 重连尝试
 		maxReconnectAttempts: 5,
 
-		// —— 从参考保留的业务态 ——
-		friendRequestList: [], // 好友请求列表
-		messageRecordList: [], // 历史会话列表（含群）
-		chatUserInfo: {}, // 页面选中的聊天角色
+		// —— 业务态 ——
+		friendRequestList: [] as any[], // 好友请求列表
+		messageRecordList: [] as ConversationItem[], // 会话列表（含群）
+		chatUserInfo: {} as ChatMessage | {}, // 页面选中的聊天角色
 		stompState: StompState.CLOSED,
+
+		/** 已发出的消息 id 集合，用于服务端回显时去重 */
+		_sentIds: {} as Record<string, boolean>,
+		/** 群聊订阅 id 记录，避免重复订阅 */
+		_groupSubIds: {} as Record<string, string>,
 	}),
 
 	getters: {
-		// 消息数量
 		messageCount: (state: any): number => state.messages.length,
-		// 最后一条消息
 		lastMessage: (state: any): ChatMessage | undefined =>
 			state.messages[state.messages.length - 1],
-		// 可展示状态文案
 		stateText: (state: any): string =>
 			state.stompState === StompState.CONNECTED
 				? '已连接'
 				: state.stompState === StompState.CONNECTING
 				? '连接中'
 				: '已断开',
+		/** 当前会话是否为群聊 */
+		isGroupChat: (state: any): boolean => !!(state.chatUserInfo && state.chatUserInfo.isGroup),
 	},
 
 	actions: {
+		// ==================== 连接管理 ====================
+
 		connect(chatInfo?: ChatMessage) {
 			const token = getToken();
-			// 未登录不可建立聊天
 			if (!token) {
 				warnLog('未登录，无法连接 WebSocket');
 				toast('请先登录');
 				return;
 			}
-
-			// 连接去重：已有活跃/连接中则跳过
 			if (this.isConnected || this.isConnecting) return;
 
 			this.currentChat = chatInfo || this.currentChat || {};
 			this.isConnecting = true;
 
 			const headers: Record<string, string> = {};
-			// 鉴权：默认 Authorization: Bearer（若后端握手读其他字段，改这里）
 			headers['Authorization'] = 'Bearer ' + token;
 
 			try {
@@ -141,19 +192,19 @@ export const useChatStore = defineStore({
 					url: `${envConfig.wsUrl}/ws/chat`,
 					headers,
 					heartbeat: 4000,
-					// —— CONNECTED —— 对应参考 onConnect ——
 					onConnect: () => {
 						this.isConnected = true;
 						this.isConnecting = false;
 						this.stompState = StompState.CONNECTED;
 						this.reconnectAttempts = 0;
+						this._wsActive = true;
 
-						// 订阅个人私聊
+						// 个人私聊
 						wsSubscribe('/user/queue/private', (frame) => {
 							this.handlePush('/user/queue/private', frame);
 						});
 						// 好友申请
-						wsSubscribe('/user/queue/friendRequest', (_frame) => {
+						wsSubscribe('/user/queue/friendRequest', () => {
 							this.refreshRequestFriendList();
 						});
 						// 系统通知 / 加入群聊
@@ -162,22 +213,18 @@ export const useChatStore = defineStore({
 						});
 						// 历史会话里的群聊频道
 						this.subscribeGroupTopics();
-						// 拉一次历史/未读
-						// this.fetchInitialData();
+						// 未读数
+						this.fetchUnreadCount();
 					},
-					// —— 断开 ——
 					onState: (s: StompState) => {
 						this.stompState = s;
-						if (s !== StompState.CONNECTED) {
-							if (this.isConnected) {
-								// 意外断开
-								this.isConnected = false;
-								this.isConnecting = false;
-								this.tryReconnect();
-							}
+						if (s !== StompState.CONNECTED && this.isConnected) {
+							this.isConnected = false;
+							this.isConnecting = false;
+							this._wsActive = false;
+							this.tryReconnect();
 						}
 					},
-					// —— 错误 ——
 					onError: (err: any) => {
 						const msg =
 							err && typeof err === 'object'
@@ -185,23 +232,20 @@ export const useChatStore = defineStore({
 								: String(err) || '聊天连接异常';
 						this.isConnected = false;
 						this.isConnecting = false;
-						toast('聊天连接异常: ' + msg, 'none');
+						this._wsActive = false;
+						warnLog('STOMP 异常', msg);
 					},
 				});
 			} catch (error) {
 				console.error('连接失败:', error);
 				this.isConnecting = false;
 				this.isConnected = false;
-				toast('连接聊天服务器失败', 'none');
+				toast('连接聊天服务器失败');
 			}
 		},
 
-		/** 收到 /user/queue/private 时的业务过滤：按当前会话对象判断是否入列表 */
-		privateFilterCb(message: ChatMessage): boolean {
-			return true;
-		},
-
-		handlePush(_dest: string, filter: (m: ChatMessage) => boolean, frame: StompFrame) {
+		/** 收到 /user/queue/private 推送 */
+		handlePush(_dest: string, frame: StompFrame) {
 			let received: ChatMessage | null = null;
 			try {
 				received = JSON.parse(frame.body || '{}') as ChatMessage;
@@ -209,32 +253,38 @@ export const useChatStore = defineStore({
 				received = { content: frame.body } as ChatMessage;
 			}
 			if (!received) return;
-			if (!filter(received)) return;
-			// 进入展示：仅在属于当前会话时 push 到 messages
 			this.applyIncoming(received);
 		},
 
-		/** 群聊/私聊归属过滤（参考 setNowMessageList 的实现语义） */
+		/** 群聊/私聊归属过滤 + 去重（收到自己发送的回显时忽略） */
 		applyIncoming(received: ChatMessage) {
+			// 服务端回显自己刚发的消息：本地已插入，直接丢弃
+			const rid = received.id || '';
+			if (rid && this._sentIds[rid]) {
+				delete this._sentIds[rid];
+				return;
+			}
+			if (received.contentDate === undefined) received.contentDate = nowStr();
+
 			const cur = this.chatUserInfo as any;
 			const curGroup = !!(cur && cur.isGroup);
+			let belong = false;
+
 			if (curGroup) {
-				if (cur && String(cur.receiveUserId || '') === String(received.groupId || '')) {
-					this.messages!.push(received);
-				}
-			} else {
-				// 私聊：双向都算
+				belong = String(cur.receiveUserId || '') === String(received.groupId || '');
+			} else if (cur?.sendUserName && cur?.receiveUserName) {
 				const s = received.sendUserName || '';
 				const r = received.receiveUserName || '';
-				if (
-					cur?.sendUserName &&
-					cur?.receiveUserName &&
-					((s === cur.sendUserName && r === cur.receiveUserName) ||
-						(s === cur.receiveUserName && r === cur.sendUserName))
-				) {
-					this.messages!.push(received);
-				}
+				belong =
+					(s === cur.sendUserName && r === cur.receiveUserName) ||
+					(s === cur.receiveUserName && r === cur.sendUserName);
 			}
+
+			if (belong) {
+				this.messages.push(received);
+			}
+			// 更新会话列表预览与未读
+			this.touchConversation(received, belong);
 		},
 
 		/** 系统通知（群聊成员加入等） */
@@ -247,24 +297,104 @@ export const useChatStore = defineStore({
 			}
 			if (!received) return;
 			if (received.messageType === 'groupMember') {
-				// 尝试把被加入的群并入 messageRecordList
-				const uid = this.currentUserId();
 				const exists = this.messageRecordList.findIndex(
 					(it: any) => it?.receiveUserInfo?.id == (received?.otherParams?.groupId || '')
 				);
 				if (exists === -1) {
-					this.messageRecordList!.push({
+					this.messageRecordList.push({
 						receiveUserInfo: {
-							id: received.otherParams?.groupId,
+							id: received.otherParams?.groupId || '',
 							avatarUrl: '',
-							username: received.otherParams?.groupName,
-							realName: received.otherParams?.groupName,
+							username: received.otherParams?.groupName || '群聊',
+							realName: received.otherParams?.groupName || '群聊',
 							isGroup: true,
 						},
 						sendUserInfo: this.buildSendUser(),
+						lastMessage: '已加入群聊',
+						lastTime: nowStr(),
+						unreadCount: 0,
 					});
-					void uid;
 				}
+			}
+		},
+
+		/** 根据收到的消息刷新会话列表预览/时间/未读 */
+		touchConversation(msg: ChatMessage, isActive: boolean) {
+			// 系统消息（加入/离开）不参与会话预览与未读
+			if (msg.type === MessageType.JOIN || msg.type === MessageType.LEAVE) return;
+			if (!msg.content) return;
+
+			const isGroup = !!msg.groupId;
+			const myName = this.currentUserName();
+			const targetName = isGroup
+				? ''
+				: msg.sendUserName === myName
+				? msg.receiveUserName || ''
+				: msg.sendUserName || '';
+
+			let idx = -1;
+			if (isGroup) {
+				idx = this.messageRecordList.findIndex(
+					(it: any) => it?.receiveUserInfo?.isGroup && String(it.receiveUserInfo.id) === String(msg.groupId)
+				);
+			} else {
+				idx = this.messageRecordList.findIndex(
+					(it: any) =>
+						!it?.receiveUserInfo?.isGroup &&
+						it?.receiveUserInfo?.username === targetName
+				);
+			}
+
+			if (idx === -1) {
+				if (isGroup) {
+					this.messageRecordList.unshift({
+						receiveUserInfo: {
+							id: msg.groupId || '',
+							username: msg.otherParams?.groupName || '群聊',
+							realName: msg.otherParams?.groupName || '群聊',
+							avatarUrl: msg.otherParams?.avatarUrl || '',
+							isGroup: true,
+						},
+						sendUserInfo: this.buildSendUser(),
+						lastMessage: msg.content,
+						lastTime: msg.contentDate || nowStr(),
+						unreadCount: 0,
+					});
+				} else {
+					const peer =
+						msg.sendUserName === myName
+							? {
+									id: msg.receiveUserId || '',
+									username: msg.receiveUserName || '',
+									realName: msg.receiveUserName || '',
+									avatarUrl: msg.receiveUserAvatar || '',
+							  }
+							: {
+									id: msg.sendUserId || '',
+									username: msg.sendUserName || '',
+									realName: msg.sendUserName || '',
+									avatarUrl: msg.sendUserAvatar || '',
+							  };
+					this.messageRecordList.unshift({
+						receiveUserInfo: peer,
+						sendUserInfo: this.buildSendUser(),
+						lastMessage: msg.content,
+						lastTime: msg.contentDate || nowStr(),
+						unreadCount: 0,
+					});
+					idx = 0;
+				}
+			} else {
+				const conv = this.messageRecordList[idx];
+				conv.lastMessage = msg.content;
+				conv.lastTime = msg.contentDate || nowStr();
+				if (!isActive && msg.sendUserName !== myName) {
+					conv.unreadCount = (conv.unreadCount || 0) + 1;
+					this.unreadCount += 1;
+				}
+				// 置顶
+				this.messageRecordList.splice(idx, 1);
+				this.messageRecordList.unshift(conv);
 			}
 		},
 
@@ -273,6 +403,14 @@ export const useChatStore = defineStore({
 			try {
 				const us = useUserStore();
 				return (us.userInfo && us.userInfo.id) || '';
+			} catch (e) {
+				return '';
+			}
+		},
+		currentUserName(): string {
+			try {
+				const us = useUserStore();
+				return (us.userInfo && us.userInfo.username) || '';
 			} catch (e) {
 				return '';
 			}
@@ -289,26 +427,54 @@ export const useChatStore = defineStore({
 			}
 		},
 
-		/** 连接成功后拉一次历史会话 + 未读数，并据此订阅群聊 */
-		async fetchInitialData() {
-			try {
-				this.friendRequestList = [];
-				await this.getMessageRecords();
-				this.subscribeGroupTopics();
-				this.fetchUnreadCount();
-			} catch (e) {
-				console.error(e);
+		// ==================== 会话与历史 ====================
+
+		/** 拉取会话列表；mock 模式下用内置数据 */
+		async getMessageRecords() {
+			if (USE_MOCK) {
+				this.messageRecordList = this.buildMockConversations();
+				return;
+			}
+			const sendUserId = this.currentUserId();
+			const res: any = await getMessageRecord({ sendUserId });
+			if (res && res.code === 200 && Array.isArray(res.data)) {
+				this.messageRecordList = (res.data || []).map((element: any) => {
+					const sendUserInfo = this.buildSendUser();
+					if (element.isGroup === 1) {
+						return {
+							receiveUserInfo: {
+								id: element.groupId,
+								avatarUrl: element.avatarList || '',
+								username: element.groupName,
+								realName: element.groupName,
+								isGroup: true,
+							},
+							sendUserInfo,
+							lastMessage: element.lastMessage || '',
+							lastTime: element.contentDate || '',
+							unreadCount: element.unreadCount || 0,
+						};
+					}
+					return {
+						receiveUserInfo: element.userInfo || element.receiveUserInfo,
+						sendUserInfo,
+						lastMessage: element.lastMessage || element.content || '',
+						lastTime: element.contentDate || '',
+						unreadCount: element.unreadCount || 0,
+					};
+				});
 			}
 		},
 
-		/** 对 messageRecordList 中存在isGroup 的会话逐个订阅组默认频道 */
+		/** 订阅会话列表里所有群聊频道 */
 		subscribeGroupTopics() {
-			const list = this.messageRecordList || [];
-			const groups = list.filter((it: any) => it?.receiveUserInfo?.isGroup);
+			const groups = (this.messageRecordList || []).filter(
+				(it: any) => it?.receiveUserInfo?.isGroup
+			);
 			groups.forEach((group: any) => {
-				const id = group.receiveUserInfo.id;
-				if (id === undefined || id === null) return;
-				wsSubscribe(`/topic/group/${id}`, (frame) => {
+				const id = String(group.receiveUserInfo.id || '');
+				if (!id || this._groupSubIds[id]) return;
+				const subId = wsSubscribe(`/topic/group/${id}`, (frame) => {
 					try {
 						const m = JSON.parse(frame.body || '{}') as ChatMessage;
 						this.applyIncoming(m);
@@ -316,39 +482,41 @@ export const useChatStore = defineStore({
 						/* ignore */
 					}
 				});
+				if (subId) this._groupSubIds[id] = subId;
 			});
 		},
 
-		/** 历史会话记录（私聊 + 群聊都组装到 messageRecordList） */
-		async getMessageRecords() {
-			const sendUserId = this.currentUserId();
-			const res: any = await getMessageRecord({ sendUserId });
-			if (res && res.code === 200 && Array.isArray(res.data)) {
-				const list = (res.data || []).map((element: any) => {
-					const sendUserInfo = this.buildSendUser();
-					// element.isGroup === 0 →私聊；1 →群聊
-					if (element.isGroup === 1) {
-						return {
-							receiveUserInfo: {
-								id: element.groupId,
-								avatarUrl: '',
-								username: element.content,
-								realName: element.content,
-								isGroup: true,
-							},
-							sendUserInfo,
-						};
-					}
-					return {
-						receiveUserInfo: element.userInfo || element.receiveUserInfo,
-						sendUserInfo,
-					};
-				});
-				this.messageRecordList = list;
+		/** 加载当前会话历史消息 */
+		async loadHistoryMessage(params: any, page = 1, size = 50) {
+			if (USE_MOCK) {
+				const all = this.mockHistory(params);
+				this.messages = all.slice(Math.max(0, all.length - page * size));
+				return;
+			}
+			try {
+				const resUp = await getHistoryRecord({ ...params, page, size });
+				const list = (resUp && resUp.data) || [];
+				this.messages = this.sortByTime(list);
+			} catch (e) {
+				console.error('加载历史消息失败:', e);
+				this.messages = [];
 			}
 		},
 
-		// —— 界面主动动作 / 发送 ——
+		/** 按 contentDate 升序（旧 -> 新） */
+		sortByTime(list: ChatMessage[]): ChatMessage[] {
+			const toTs = (s?: string): number => {
+				if (!s) return 0;
+				let d = new Date(s);
+				if (isNaN(d.getTime())) {
+					d = new Date(s.replace(/-/g, '/').replace('T', ' ').replace(/\.\d+.*$/, ''));
+				}
+				return isNaN(d.getTime()) ? 0 : d.getTime();
+			};
+			return [...list].sort((a, b) => toTs(a.contentDate) - toTs(b.contentDate));
+		},
+
+		// ==================== 会话切换与显示 ====================
 
 		setMessage(list: ChatMessage[]) {
 			this.messages = list || [];
@@ -356,31 +524,24 @@ export const useChatStore = defineStore({
 
 		setChatUserInfo(info: any) {
 			this.messages = [];
-			this.chatUserInfo = info;
+			this.chatUserInfo = info || {};
 		},
 
 		clearMessages() {
 			this.messages = [];
 		},
 
-		/** 参考 loadHistoryMessage：拉聊天室/群历史消息 */
-		async loadHistoryMessage(params: any, page = 1, size = 50) {
-			try {
-				const resUp = await getHistoryRecord({ ...params, page, size });
-				if (resUp && resUp.data) this.messages = resUp.data;
-				else this.messages = [];
-			} catch (e) {
-				console.error('加载历史消息失败:', e);
-				this.messages = [];
-			}
+		/** 把一条本地消息直接插入当前会话（发送后立即回显） */
+		appendLocalMessage(msg: ChatMessage) {
+			this.messages.push(msg);
 		},
 
-		/**
-		 * 通用发送。public send 等价参考里 stompClient.publish 的封装。
-		 */
+		// ==================== 发送 ====================
+
+		/** 通用发送（等价 stompClient.publish） */
 		sendPublic(destination: string, body: Record<string, unknown>): boolean {
 			if (!this.isConnected) {
-				toast('未连接到聊天服务器', 'none');
+				toast('未连接到聊天服务器');
 				return false;
 			}
 			try {
@@ -388,108 +549,131 @@ export const useChatStore = defineStore({
 				return true;
 			} catch (e) {
 				console.error('发送失败:', e);
-				toast('发送失败', 'none');
+				toast('发送失败');
 				return false;
 			}
 		},
 
 		/** 私聊发送：/app/chat.private/{receiveUserName} */
 		sendPrivateMessage(chatInfoAndContent: any): boolean {
-			if (!this.isConnected) {
-				toast('未连接到聊天服务器', 'none');
-				return false;
-			}
 			const { content, ...chatInfo } = chatInfoAndContent || {};
 			if (!content || String(content).trim() === '') return false;
 
 			const sendUserId = chatInfo.sendUserId || this.currentUserId() || '';
 			const receiveUserName = chatInfo.receiveUserName || '';
-			const chatMessage: Partial<ChatMessage> = {
-				id: generateUUID(),
+			const id = generateUUID();
+			const chatMessage: ChatMessage = {
+				id,
+				sendUserId,
 				sendUserName: chatInfo.sendUserName || '',
 				sendUserAvatar: chatInfo.sendUserAvatar || '',
-				sendUserId,
+				receiveUserId: chatInfo.receiveUserId || '',
 				receiveUserName,
 				receiveUserAvatar: chatInfo.receiveUserAvatar || '',
 				content: String(content).trim(),
+				contentDate: nowStr(),
 				type: MessageType.CHAT,
 			};
-			try {
-				wsSend(`/app/chat.private/${receiveUserName || '_'}`, chatMessage);
-				this.saveMessageToLocalDb({
-					id: chatMessage.id as string,
-					isGroup: 0,
-					type: MessageType.CHAT,
-					content: chatMessage.content,
-					sendUserId,
-					receiveUserId: receiveUserName,
-				});
-				return true;
-			} catch (e) {
-				console.error('发送私聊失败:', e);
-				toast('发送私聊失败', 'none');
-				return false;
+
+			// 未连接也允许本地先回显，保持交互连贯
+			if (this.isConnected) {
+				try {
+					wsSend(`/app/chat.private/${receiveUserName || '_'}`, chatMessage);
+				} catch (e) {
+					console.error('发送私聊失败:', e);
+					toast('发送私聊失败');
+					return false;
+				}
 			}
+			this._sentIds[id] = true;
+			this.appendLocalMessage(chatMessage);
+			this.touchConversation(chatMessage, true);
+			this.saveMessageToLocalDb({
+				id,
+				isGroup: 0,
+				type: MessageType.CHAT,
+				content: chatMessage.content,
+				sendUserId,
+				receiveUserId: chatInfo.receiveUserId || receiveUserName,
+			});
+			return true;
 		},
 
 		/** 群聊发送：/app/chat.group/{groupId} */
 		sendGroupMessage(chatInfo: any, groupId: string): boolean {
-			if (!this.isConnected) {
-				toast('未连接到聊天服务器', 'none');
-				return false;
-			}
 			if (!chatInfo?.content || String(chatInfo.content).trim() === '') return false;
 
 			const sendUserId = chatInfo.sendUserId || this.currentUserId() || '';
-			const chatMessage: Partial<ChatMessage> = {
-				id: generateUUID(),
+			const id = generateUUID();
+			const chatMessage: ChatMessage = {
+				id,
+				sendUserId,
 				sendUserName: chatInfo.sendUserName || '',
 				sendUserAvatar: chatInfo.sendUserAvatar || '',
 				receiveUserName: '',
 				receiveUserAvatar: '',
 				content: String(chatInfo.content).trim(),
+				contentDate: nowStr(),
+				groupId,
 				type: MessageType.CHAT,
+				// 供会话列表预览显示群名
+				otherParams: { groupName: chatInfo.groupName || '' },
 			};
-			try {
-				wsSend(`/app/chat.group/${groupId}`, chatMessage);
-				this.saveMessageToLocalDb({
-					id: chatMessage.id as string,
-					isGroup: 1,
-					groupId,
-					type: MessageType.CHAT,
-					content: chatMessage.content,
-					sendUserId,
-					receiveUserId: null,
-				});
-				return true;
-			} catch (e) {
-				console.error('发送群聊失败:', e);
-				toast('发送群聊失败', 'none');
-				return false;
+
+			if (this.isConnected) {
+				try {
+					// 只发送后端实体认识的字段，避免序列化异常
+					wsSend(`/app/chat.group/${groupId}`, {
+						id: chatMessage.id,
+						sendUserId: chatMessage.sendUserId,
+						sendUserName: chatMessage.sendUserName,
+						sendUserAvatar: chatMessage.sendUserAvatar,
+						content: chatMessage.content,
+						type: chatMessage.type,
+					});
+				} catch (e) {
+					console.error('发送群聊失败:', e);
+					toast('发送群聊失败');
+					return false;
+				}
 			}
+			this._sentIds[id] = true;
+			this.appendLocalMessage(chatMessage);
+			this.touchConversation(chatMessage, true);
+			this.saveMessageToLocalDb({
+				id,
+				isGroup: 1,
+				groupId,
+				type: MessageType.CHAT,
+				content: chatMessage.content,
+				sendUserId,
+				receiveUserId: null,
+			});
+			return true;
 		},
 
-		/** 好友申请（参考 发 -> /app/chat.friendRequest） */
+		/** 好友申请 */
 		sendFriendRequest(username: string, content = '您好，想加个好友'): boolean {
 			if (!this.isConnected) {
-				toast('未连接到聊天服务器', 'none');
+				toast('未连接到聊天服务器');
 				return false;
 			}
 			try {
-				wsSend('/app/chat.friendRequest', {
-					targetUser: username,
-					content,
-				});
+				wsSend('/app/chat.friendRequest', { targetUser: username, content });
 				return true;
 			} catch (e) {
 				console.error('发送好友请求失败:', e);
-				toast('发送好友请求失败', 'none');
+				toast('发送好友请求失败');
 				return false;
 			}
 		},
 
-		/** 同步好友请求公告列表 */
+		/** 同步好友请求列表 */
 		async refreshRequestFriendList() {
+			if (USE_MOCK) {
+				this.friendRequestList = this.buildMockFriendRequests();
+				return;
+			}
 			try {
 				const res: any = await getRequestFriendList({
 					type: 'requestList',
@@ -508,29 +692,40 @@ export const useChatStore = defineStore({
 
 		/** 群聊加入事件 */
 		sendGroupMemberJoinMessage(groupInfo: any) {
-			if (!this.isConnected) return;
-			if (!groupInfo?.groupId || !groupInfo?.group?.length) return;
+			if (!groupInfo?.groupId || !groupInfo?.group?.length) return false;
 			const users = (groupInfo.group as any[]).map((it: any) => it.username);
-			try {
-				wsSend(`/app/chat.addGroupMember/${groupInfo.groupId}`, {
-					groupName: groupInfo.groupName,
-					content: users.join(','),
-				});
-				this.saveMessageToLocalDb({
-					sendUserId: 'system',
-					type: MessageType.JOIN,
-					content: users + ' 加入群聊',
-					isGroup: 1,
-					groupId: groupInfo.groupId,
-				});
-				return true;
-			} catch (e) {
-				console.error('发送私聊失败:', e);
+			const joinMsg: ChatMessage = {
+				id: generateUUID(),
+				sendUserId: 'system',
+				sendUserName: 'system',
+				content: users.join('、') + ' 加入群聊',
+				contentDate: nowStr(),
+				type: MessageType.JOIN,
+				groupId: groupInfo.groupId,
+			};
+			if (this.isConnected) {
+				try {
+					wsSend(`/app/chat.addGroupMember/${groupInfo.groupId}`, {
+						groupName: groupInfo.groupName,
+						content: users.join(','),
+					});
+				} catch (e) {
+					console.error('发送群聊加入消息失败:', e);
+				}
 			}
+			this.saveMessageToLocalDb({
+				sendUserId: 'system',
+				type: MessageType.JOIN,
+				content: joinMsg.content,
+				isGroup: 1,
+				groupId: groupInfo.groupId,
+			});
+			return true;
 		},
 
 		/** 发送后同步落库（本地记录，异步） */
 		async saveMessageToLocalDb(chatInfo: any) {
+			if (USE_MOCK) return;
 			try {
 				await addMessageRecord({
 					id: chatInfo.id || '',
@@ -546,7 +741,16 @@ export const useChatStore = defineStore({
 			}
 		},
 
+		// ==================== 未读 / 断开 ====================
+
 		async fetchUnreadCount() {
+			if (USE_MOCK) {
+				this.unreadCount = this.messageRecordList.reduce(
+					(sum: number, it: any) => sum + (it.unreadCount || 0),
+					0
+				);
+				return;
+			}
 			try {
 				const res: any = await getUnreadCount();
 				if (res && res.data && typeof res.data.count === 'number') {
@@ -557,16 +761,26 @@ export const useChatStore = defineStore({
 			}
 		},
 
-		markAsRead() {
-			this.unreadCount = 0;
+		/** 某会话标记已读 */
+		markConversationRead(username: string) {
+			const idx = this.messageRecordList.findIndex(
+				(it: any) => it?.receiveUserInfo?.username === username
+			);
+			if (idx !== -1) {
+				const un = this.messageRecordList[idx].unreadCount || 0;
+				this.messageRecordList[idx].unreadCount = 0;
+				this.unreadCount = Math.max(0, this.unreadCount - un);
+			}
 		},
 
-		/** 切换会话：先断开再按新对象重连（页面调用） */
+		markAsRead() {
+			this.unreadCount = 0;
+			this.messageRecordList.forEach((it: any) => (it.unreadCount = 0));
+		},
+
+		/** 切换会话：先断开再按新对象重连 */
 		switchRoom(chatInfo: ChatMessage) {
-			if (
-				this.chatUserInfo &&
-				JSON.stringify(chatInfo) === JSON.stringify(this.chatUserInfo)
-			) {
+			if (this.chatUserInfo && JSON.stringify(chatInfo) === JSON.stringify(this.chatUserInfo)) {
 				return;
 			}
 			this.disconnectHard();
@@ -575,38 +789,116 @@ export const useChatStore = defineStore({
 			this.connect(chatInfo);
 		},
 
-		/** 手动断开（主动）  —— 调用底层并复位 */
 		disconnect() {
 			wsDisconnect();
 			this.stompState = StompState.CLOSED;
 			this.isConnected = false;
 			this.isConnecting = false;
+			this._wsActive = false;
 		},
 
 		disconnectHard() {
-			// 切换房间时不触发自动重连
 			this.reconnectAttempts = this.maxReconnectAttempts;
 			wsDisconnect();
 			this.stompState = StompState.CLOSED;
 			this.isConnected = false;
 			this.isConnecting = false;
+			this._wsActive = false;
 		},
 
-		/** 简单重连（受 maxReconnectAttempts 限流），仅非主动断开时触发 */
 		tryReconnect() {
 			if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-				toast('聊天连接已断开，请手动点击重连', 'none');
+				toast('聊天连接已断开，请手动点击重连');
 				return;
 			}
 			this.reconnectAttempts++;
 			warnLog(`尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 			setTimeout(() => {
 				if (!this.isConnected && !this.isConnecting) {
-					this.reconnectAttempts = 0;
 					this.connect(this.currentChat as ChatMessage);
 				}
 			}, 3000 * this.reconnectAttempts);
-			void this.endpoint;
+		},
+
+		// ==================== MOCK 数据 ====================
+
+		buildMockConversations(): ConversationItem[] {
+			const me = this.buildSendUser();
+			return [
+				{
+					receiveUserInfo: {
+						id: 'mock-user-1',
+						username: 'zhangsan',
+						realName: '张三',
+						avatarUrl: '',
+					},
+					sendUserInfo: me,
+					lastMessage: '晚点一起复习吗？',
+					lastTime: nowStr(),
+					unreadCount: 2,
+				},
+				{
+					receiveUserInfo: {
+						id: 'mock-group-1',
+						username: '学习交流群',
+						realName: '学习交流群',
+						avatarUrl: ['', '', ''],
+						isGroup: true,
+					},
+					sendUserInfo: me,
+					lastMessage: '李四: 这道题怎么做',
+					lastTime: nowStr(),
+					unreadCount: 5,
+				},
+				{
+					receiveUserInfo: {
+						id: 'mock-user-2',
+						username: 'lisi',
+						realName: '李四',
+						avatarUrl: '',
+					},
+					sendUserInfo: me,
+					lastMessage: '收到，谢谢！',
+					lastTime: '2024-01-01 10:00:00',
+					unreadCount: 0,
+				},
+			];
+		},
+
+		buildMockFriendRequests(): any[] {
+			return [
+				{ id: 'mock-req-1', username: 'wangwu', realName: '王五', avatarUrl: '' },
+			];
+		},
+
+		mockHistory(params: any): ChatMessage[] {
+			const myName = this.currentUserName() || '我';
+			const isGroup = Number(params?.isGroup) === 1;
+			const peerName = this.chatUserInfo?.receiveUserName || '对方';
+			const base: ChatMessage[] = [
+				{
+					id: 'm1',
+					sendUserName: peerName,
+					content: isGroup ? '欢迎加入群聊～' : '你好呀，好久不见！',
+					contentDate: '2024-01-01 09:58:00',
+					type: MessageType.CHAT,
+				},
+				{
+					id: 'm2',
+					sendUserName: myName,
+					content: '是呀，最近在准备考试',
+					contentDate: '2024-01-01 09:59:00',
+					type: MessageType.CHAT,
+				},
+				{
+					id: 'm3',
+					sendUserName: peerName,
+					content: isGroup ? '大家一起加油！' : '晚点一起复习吗？',
+					contentDate: '2024-01-01 10:00:00',
+					type: MessageType.CHAT,
+				},
+			];
+			return base;
 		},
 	},
 });

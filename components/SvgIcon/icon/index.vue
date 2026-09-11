@@ -24,6 +24,7 @@
 <script setup lang="ts">
   import { computed, Ref, ref, watch } from 'vue';
   import { useUserStore } from '@/store/modules/user';
+  import envConfig from '@/env/index';
   const userStore = useUserStore();
 
   const props = defineProps({
@@ -68,7 +69,7 @@
       if (props.source === 'local') {
         iconName.value = `#icon-${props.name}`;
       } else if (props.source === 'online') {
-        const svgUrl = `http://localhost:3000/devApi/request/fileView/fileUploads/uploads/icon/${encodeURIComponent(
+        const svgUrl = `${envConfig.baseUrl}/fileView/fileUploads/uploads/icon/${encodeURIComponent(
           props.name
         )}.svg`;
 

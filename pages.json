@@ -49,6 +49,13 @@
 			}
 		},
 		{
+			"path": "pages/chat/chatDetail",
+			"style": {
+				"navigationBarTitleText": "聊天",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/chat/dynamic",
 			"style": {
 				"navigationBarTitleText": "动态",
