@@ -24,14 +24,13 @@
 					<uni-list-chat
 						v-for="(item, index) in conversations"
 						:key="index"
-						:avatar-circle="!item.receiveUserInfo.isGroup"
 						:avatar="singleAvatar(item)"
 						:avatar-list="groupAvatarList(item)"
 						:title="item.receiveUserInfo.username"
 						:note="item.lastMessage || '暂无消息'"
 						:time="formatTime(item.lastTime)"
 						:badge-text="badgeText(item.unreadCount)"
-						badge-positon="left"
+						badge-positon="right"
 						clickable
 						@click="openChat(item)"
 					/>

@@ -32,18 +32,16 @@
 					</view>
 				</view>
 				<template v-slot:left>
-					<uni-icons
+					<!-- <uni-icons
 						type="left"
 						size="26"
 						@click="handleBack"
 						v-if="showBack"
-					></uni-icons>
+					></uni-icons> -->
+					<slot name="nav-left"></slot>
 				</template>
 				<template v-slot:right>
 					<view class="nav-bar-right">
-						<!-- <view class="info-trigger" @click="openInfoPopup">
-								<text class="info-trigger-text">信息</text>
-							</view> -->
 						<slot name="nav-right"></slot>
 					</view>
 				</template>

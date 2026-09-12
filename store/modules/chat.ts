@@ -440,6 +440,7 @@ export const useChatStore = defineStore({
 			if (res && res.code === 200 && Array.isArray(res.data)) {
 				this.messageRecordList = (res.data || []).map((element: any) => {
 					const sendUserInfo = this.buildSendUser();
+					const unread = this.parseUnreadCount(element);
 					if (element.isGroup === 1) {
 						return {
 							receiveUserInfo: {
@@ -452,7 +453,7 @@ export const useChatStore = defineStore({
 							sendUserInfo,
 							lastMessage: element.lastMessage || '',
 							lastTime: element.contentDate || '',
-							unreadCount: element.unreadCount || 0,
+							unreadCount: unread,
 						};
 					}
 					return {
@@ -460,10 +461,28 @@ export const useChatStore = defineStore({
 						sendUserInfo,
 						lastMessage: element.lastMessage || element.content || '',
 						lastTime: element.contentDate || '',
-						unreadCount: element.unreadCount || 0,
+						unreadCount: unread,
 					};
 				});
 			}
+		},
+
+		/** 兼容后端多种未读数字段命名，统一解析 */
+		parseUnreadCount(element: any): number {
+			if (!element) return 0;
+			const candidates = [
+				element.unreadCount,
+				element.noReadCount,
+				element.unReadCount,
+				element.unread,
+				element.notReadCount,
+				element.count,
+			];
+			for (const v of candidates) {
+				const n = Number(v);
+				if (Number.isFinite(n) && n > 0) return n;
+			}
+			return 0;
 		},
 
 		/** 订阅会话列表里所有群聊频道 */
@@ -751,13 +770,22 @@ export const useChatStore = defineStore({
 				);
 				return;
 			}
+			const localSum = this.messageRecordList.reduce(
+				(sum: number, it: any) => sum + (it.unreadCount || 0),
+				0
+			);
 			try {
 				const res: any = await getUnreadCount();
-				if (res && res.data && typeof res.data.count === 'number') {
-					this.unreadCount = res.data.count;
+				const count = res?.data?.count;
+				// 后端未读接口未就绪（返回 0/缺失）时，回退用会话列表本地累加值
+				if (typeof count === 'number' && count > 0) {
+					this.unreadCount = count;
+				} else {
+					this.unreadCount = localSum;
 				}
 			} catch (e) {
 				console.error('获取未读失败:', e);
+				this.unreadCount = localSum;
 			}
 		},
 

@@ -1,6 +1,13 @@
 <template>
 	<app-layout>
-		<template #nav-right>
+		<template #['nav-left']>
+			<uni-icons
+				type="left"
+				size="26"
+				@click="handleBack"
+			></uni-icons>
+		</template>
+		<template #['nav-right']>
 			<view class="conn-status" :class="chatStore.isConnected ? 'ok' : 'bad'">
 				{{ chatStore.isConnected ? '在线' : '离线' }}
 			</view>
@@ -281,6 +288,10 @@ function avatarColor(name?: string): string {
 function formatTime(t?: string): string {
 	return formatChatTime(t);
 }
+
+function handleBack() {
+	uni.navigateBack({ delta: 1 });
+}
 </script>
 
 <style scoped>
@@ -362,6 +373,9 @@ function formatTime(t?: string): string {
 	margin: 0 16rpx;
 	display: flex;
 	flex-direction: column;
+	align-items: flex-start;
+	flex-shrink: 1;
+	overflow: hidden;
 }
 .msg-item.own .msg-body {
 	align-items: flex-end;
@@ -391,9 +405,12 @@ function formatTime(t?: string): string {
 	border-radius: 16rpx;
 	padding: 18rpx 24rpx;
 	box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+	max-width: 100%;
+	align-self: flex-start;
 }
 .bubble.own {
 	background-color: #2979ff;
+	align-self: flex-end;
 }
 .bubble-text {
 	font-size: 28rpx;
